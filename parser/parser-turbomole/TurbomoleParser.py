@@ -123,9 +123,17 @@ def build_TurbomoleMainFileSimpleMatcher():
                 startReStr = r"\s*density functional",           
                 sections = ['section_system_description'],  
                 subMatchers = [                                                 
-                SM (r"\s*(?P<turbomole_functional_type>[a-zA-Z-a-zA-Z0-9]+)\s*(?: functional)")
-                #SM (r"\s*B-P86\s*(?:functional)"
-                #   ,repeats = True)                                             
+                SM (r"\s*(?P<turbomole_functional_type>[a-zA-Z-a-zA-Z0-9]+)\s*(?: functional)"),
+                SM (r"\s*exchange:\s*(?P<turbomole_functional_type_exchange>[a-zA-Z-+a-zA-Z0-9\(\)\s]+)"),
+                SM (r"\s*correlation:\s*(?P<turbomole_functional_type_correlation>[a-zA-Z-+a-zA-Z0-9\(\)\s]+)"),
+                SM (r"\s*spherical integration\s*:\s*(?P<turbomole_grid_integration>[a-zA-Z\'\s]+)"),
+                SM (r"\s*spherical gridsize\s*:\s*(?P<turbomole_grid_size>[0-9]+)"),
+                SM (r"\s*i\.e\. gridpoints\s*:\s*(?P<turbomole_grid_points_number>[0-9]+)"),
+                SM (r"\s*radial integration\s*:\s*(?P<turbomole_grid_radial_integration>[a-zA-Z0-9\(\)\s]+)"),
+                SM (r"\s*radial gridsize\s*:\s*(?P<turbomole_grid_radial_gridsize>[0-9]+)"),
+                SM (r"\s*integration cells\s*:\s*(?P<turbomole_grid_integration_cells>[0-9]+)"),
+                SM (r"\s*partition function\s*:\s*(?P<turbomole_grid_partition_func>[a-zA-Z]+)"),
+                SM (r"\s*partition sharpness\s*:\s*(?P<turbomole_grid_partition_sharpness>[0-9]+)")
                 ])  
                 ]), # END ControlInOutLines                                     
         SM (r"\s*-{20}-*", weak = True)                                         
