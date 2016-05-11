@@ -95,7 +95,7 @@ def build_TurbomoleMainFileSimpleMatcher():
         startReStr = r"\s*\|\s*basis set information\s*\|\s",                          
         subMatchers = [                                                         
         SM (name = 'ControlInOutLines',                                         
-            startReStr = r"\s*-{20}-*",                                         
+            startReStr = r"\s*we will work with the",                                         
             sections = ['section_topology'],                                    
             weak = True,                                                        
             subFlags = SM.SubFlags.Unordered,                                   
@@ -109,15 +109,24 @@ def build_TurbomoleMainFileSimpleMatcher():
                 startReStr = r"\s*type   atoms  prim   cont   basis",                          
                 #repeats = True,                                                 
                 sections = ['section_basis_set','section_system_description'],                                    
-                subMatchers = [                                                 
-                SM (r"\s*(?P<turbomole_geometry_atom_label>[a-zA-Z]+)\s*[0-9]\s*(?P<turbomole_basis_prim_number>[0-9])\s*(?P<turbomole_basis_cont_number>[0-9])\s*(?P<turbomole_basis_type>[a-zA-Z])"
+                subMatchers = [
+                 SM (r"\s*-{20}-*", weak = True),                                                 
+                SM (r"\s*(?P<turbomole_geometry_atom_label>[a-zA-Z]+)\s*[0-9]\s*(?P<turbomole_basis_prim_number>[0-9]+)\s*(?P<turbomole_basis_cont_number>[0-9]+)\s*(?P<turbomole_basis_type>[a-zA-Z-a-zA-Z]+)"
                    ,repeats = True)
                 ]),
             # only the first character is important for aims                    
             SM (r"\s*total number of primitive shells\s*:\s*(?P<turbomole_tot_primitive_shells>[0-9]+)",sections = ['section_basis_set'], repeats = True),
             SM (r"\s*total number of contracted shells\s*:\s*(?P<turbomole_tot_contracted_shells>[0-9]+)",sections = ['section_basis_set'], repeats = True),
             SM (r"\s*total number of cartesian basis functions\s*:\s*(?P<turbomole_tot_cartesian_func>[0-9]+)",sections = ['section_basis_set'], repeats = True),   
-            SM (r"\s*total number of SCF-basis functions\s*:\s*(?P<turbomole_tot_scf_basis_func>[0-9]+)",sections = ['section_basis_set'], repeats = True)   
+            SM (r"\s*total number of SCF-basis functions\s*:\s*(?P<turbomole_tot_scf_basis_func>[0-9]+)",sections = ['section_basis_set'], repeats = True),
+            SM (name = 'Density functional informations',                                
+                startReStr = r"\s*density functional",           
+                sections = ['section_system_description'],  
+                subMatchers = [                                                 
+                SM (r"\s*(?P<turbomole_functional_type>[a-zA-Z-a-zA-Z0-9]+)\s*(?: functional)")
+                #SM (r"\s*B-P86\s*(?:functional)"
+                #   ,repeats = True)                                             
+                ])  
                 ]), # END ControlInOutLines                                     
         SM (r"\s*-{20}-*", weak = True)                                         
         ])    
