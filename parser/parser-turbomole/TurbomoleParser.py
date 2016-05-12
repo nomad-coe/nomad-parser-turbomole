@@ -158,6 +158,16 @@ def build_TurbomoleMainFileSimpleMatcher():
         ])                                                                      
 
     ########################################                                    
+    # submatcher for total energy components during SCF interation              
+    TotalEnergyScfSubMatcher = SM (name = 'TotalEnergyScf',                    
+        repeats =True, 
+        startReStr = r"\s*ITERATION  ENERGY          1e\-ENERGY        2e\-ENERGY     NORM\[dD\(SAO\)\]  TOL",                          
+        subMatchers = [                                                         
+        SM(r"\s*current damping\s*:\s*(?P<turbomole_energy_scf_damping>[.0-9]+)", repeats= True),
+        SM (r"\s*(?P<turbomole_iteration_number>[0-9]+)\s*(?P<energy_total_scf_iteration__eV>[-+0-9.eEdD]+)\s*(?P<turbomole_energy_one_scf_iteration__eV>[-+0-9.eEdD]+)"
+             "\s*(?P<turbomole_energy_two_scf_iteration__eV>[-+0-9.eEdD]+)\s*(?P<turbomole_energy_norm_scf_iteration__eV>[-+0-9.eEdD]+)\s*(?P<turbomole_energy_tolerance_scf_iteration__eV>[-+0-9.eEdD]+)")
+        ])   
+    ########################################                                    
     # return main Parser                                                        
     ########################################                                    
     return SM (name = 'Root',                                                   
@@ -195,7 +205,22 @@ def build_TurbomoleMainFileSimpleMatcher():
                 # parse geometry writeout of aims                               
                 geometrySubMatcher,
                 controlInOutSubMatcher                                              
-                ])
+                ]),
+
+                # the actual section for a single configuration calculation starts here
+                SM (name = 'SingleConfigurationCalculation',                    
+                    startReStr = r"\s*start vectors will be provided from a core hamilton",
+                    repeats = True,                                             
+                    sections = ['section_single_configuration_calculation'],    
+                    subMatchers = [                                             
+                    # initialization of SCF loop, SCF iteration 0               
+                    SM (name = 'ScfInitialization',                             
+                        startReStr = r"\s*STARTING INTEGRAL EVALUATION FOR 1st SCF ITERATION",
+                        sections = ['section_scf_iteration'],                   
+                        subMatchers = [                                         
+                        TotalEnergyScfSubMatcher                               
+                        ]) # END ScfInitialization  
+                     ]) # END SingleConfigurationCalculation
                                                                                 
            ]) # CLOSING SM NewRun                                               
                                                                                 
@@ -213,8 +238,8 @@ def get_cachingLevelForMetaName(metaInfoEnv):
     """
     # manually adjust caching of metadata
     cachingLevelForMetaName = {
-#                                'eigenvalues_eigenvalues': CachingLevel.Cache,
-#                                'eigenvalues_kpoints':CachingLevel.Cache
+                                'eigenvalues_eigenvalues': CachingLevel.Cache,
+                                'eigenvalues_kpoints':CachingLevel.Cache
                                 }
 
     # Set caching for temparary storage variables
