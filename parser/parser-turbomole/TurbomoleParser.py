@@ -11,10 +11,6 @@ import logging, os, re, sys
 # This is the parser for the main file of qbox.
 ############################################################
 
-
-############################################################
-###############[1] transfer PARSER CONTEXT #################
-############################################################
 logger = logging.getLogger("nomad.turbomoleParser") 
 
 class TurbomoleParserContext(object):
