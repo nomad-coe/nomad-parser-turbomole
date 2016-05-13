@@ -106,7 +106,7 @@ def build_TurbomoleMainFileSimpleMatcher():
                 #repeats = True,                                                 
                 sections = ['section_basis_set','section_system_description'],                                    
                 subMatchers = [
-                 SM (r"\s*-{20}-*", weak = True),                                                 
+                # SM (r"\s*-{20}-*", weak = True),                                                 
                 SM (r"\s*(?P<turbomole_geometry_atom_label>[a-zA-Z]+)\s*[0-9]\s*(?P<turbomole_basis_prim_number>[0-9]+)\s*(?P<turbomole_basis_cont_number>[0-9]+)\s*(?P<turbomole_basis_type>[a-zA-Z-a-zA-Z]+)"
                    ,repeats = True)
                 ]),
@@ -170,13 +170,13 @@ def build_TurbomoleMainFileSimpleMatcher():
                                                                                 
         startReStr = "",                                                        
         forwardMatch = True,                                                    
-        weak = True,                                                            
+        weak = True,
+        sections = ['section_run'],                                                            
         subMatchers = [                                                         
             SM (name = 'ProgramHeader',                                         
                 startReStr = r"\s*RUNNING PROGRAM",                    
                 subMatchers = [                                                 
-                SM (r"\s*\: TURBOMOLE V(?P<program_version>[0-9.a-zA-Z_.]+)"),       
-                SM (r"\s*-{20}-*", weak = True),                                
+                SM (r"\s*dscf \(thnec244\) \: TURBOMOLE V(?P<turbomole_program_version>[0-9.()\s]+)")       
                 ]), # END ProgramHeader
         #=============================================================================
         #  read OUPUT file *.r, the method part comes from INPUT file *.i,  so we 
@@ -184,7 +184,7 @@ def build_TurbomoleMainFileSimpleMatcher():
         #=============================================================================
         SM (name = 'NewRun',                                                    
             startReStr = r"\s*SCF run will be profiled \!",                        
-            endReStr = r"\s*dscf : all done",                                 
+            endReStr = r"\s*\*\*\*\*  dscf \: all done  \*\*\*\*",                                 
             repeats = True,                                                     
             required = True,                                                    
             forwardMatch = True,                                                
