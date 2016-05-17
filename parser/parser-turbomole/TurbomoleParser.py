@@ -42,11 +42,11 @@ class TurbomoleParserContext(object):
         self.initialize_values()
 
     ###################################################################
-    # (3.4) onClose for geometry and force (section_system_description)
+    # (3.4) onClose for geometry and force (section_system)
     # todo: maybe we can move the force to onClose_section_single_configuration_calculation in the future. 
     ###################################################################
-    def onClose_section_system_description(self, backend, gIndex, section):
-        """Trigger called when section_system_description is closed.
+    def onClose_section_system(self, backend, gIndex, section):
+        """Trigger called when section_system is closed.
         Writes atomic positions, atom labels and lattice vectors.
         """
         # keep track of the latest system description section
@@ -104,7 +104,7 @@ def build_TurbomoleMainFileSimpleMatcher():
             SM (name = 'Basis set informations',                                           
                 startReStr = r"\s*type   atoms  prim   cont   basis",                          
                 #repeats = True,                                                 
-                sections = ['section_basis_set','section_system_description'],                                    
+                sections = ['section_basis_set','section_system'],                                    
                 subMatchers = [
                 # SM (r"\s*-{20}-*", weak = True),                                                 
                 SM (r"\s*(?P<turbomole_geometry_atom_label>[a-zA-Z]+)\s*[0-9]\s*(?P<turbomole_basis_prim_number>[0-9]+)\s*(?P<turbomole_basis_cont_number>[0-9]+)\s*(?P<turbomole_basis_type>[a-zA-Z-a-zA-Z]+)"
@@ -117,7 +117,7 @@ def build_TurbomoleMainFileSimpleMatcher():
             SM (r"\s*total number of SCF-basis functions\s*:\s*(?P<turbomole_tot_scf_basis_func>[0-9]+)",sections = ['section_basis_set'], repeats = True),
             SM (name = 'Density functional informations',                                
                 startReStr = r"\s*density functional",           
-                sections = ['section_system_description'],  
+                sections = ['section_system'],  
                 subMatchers = [                                                 
                 SM (r"\s*(?P<turbomole_functional_type>[a-zA-Z-a-zA-Z0-9]+)\s*(?: functional)"),
                 SM (r"\s*exchange:\s*(?P<turbomole_functional_type_exchange>[a-zA-Z-+a-zA-Z0-9\(\)\s]+)"),
@@ -141,7 +141,7 @@ def build_TurbomoleMainFileSimpleMatcher():
     # using the geometry output of aims has the advantage that it has a clearer structure
     geometrySubMatcher = SM (name = 'Geometry',                                 
         startReStr = r"\s*\|\s*Atomic coordinate\, charge and isotop information\s\|\s",
-        sections = ['section_system_description'],                              
+        sections = ['section_system'],                              
         subMatchers = [                                                         
         SM (r"\s*-{20}-*", weak = True),                                        
         SM (startReStr = r"\s*atomic coordinates\s*atom    charge  isotop\s",   
