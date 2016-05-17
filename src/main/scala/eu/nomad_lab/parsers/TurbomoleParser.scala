@@ -22,10 +22,11 @@ object TurbomoleParser extends SimpleExternalParserGenerator(
   ),
   mainFileTypes = Seq("text/.*"),
   mainFileRe = """ """.r,
-  cmd = Seq(DefaultPythonInterpreter.python2Exe(), "${envDir}/parsers/turbomole/parser/parser-turbomole/parser_turbomole.py",
+  cmd = Seq(DefaultPythonInterpreter.python2Exe(), "${envDir}/parsers/turbomole/parser/parser-turbomole/TurbomoleParser.py",
     "--uri", "${mainFileUri}", "${mainFilePath}"),
   resList = Seq(
-    "parser-turbomole/parser_turbomole.py",
+    "parser-turbomole/TurbomoleParser.py",
+    "parser-turbomole/TurbomoleCommon.py",
     "parser-turbomole/setup_paths.py",
     "nomad_meta_info/public.nomadmetainfo.json",
     "nomad_meta_info/common.nomadmetainfo.json",
