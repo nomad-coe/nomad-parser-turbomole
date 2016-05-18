@@ -55,17 +55,17 @@ class TurbomoleParserContext(object):
        #------1.atom_position
         atom_pos = []
         for i in ['x', 'y', 'z']:
-            api = section['turbomole_geometry_atom_position_' + i]
+            api = section['turbomole_geometry_atom_positions_' + i]
             if api is not None:
                atom_pos.append(api)
         if atom_pos:
             # need to transpose array since its shape is [number_of_atoms,3] in the metadata
-           backend.addArrayValues('atom_position', np.transpose(np.asarray(atom_pos)))
+           backend.addArrayValues('atom_positions', np.transpose(np.asarray(atom_pos)))
 
         #------2.atom labels
-        atom_labels = section['turbomole_geometry_atom_label']
+        atom_labels = section['turbomole_geometry_atom_labels']
         if atom_labels is not None:
-           backend.addArrayValues('atom_label', np.asarray(atom_labels))
+           backend.addArrayValues('atom_labels', np.asarray(atom_labels))
 
                 
 
@@ -107,7 +107,7 @@ def build_TurbomoleMainFileSimpleMatcher():
                 sections = ['section_basis_set','section_system'],                                    
                 subMatchers = [
                 # SM (r"\s*-{20}-*", weak = True),                                                 
-                SM (r"\s*(?P<turbomole_geometry_atom_label>[a-zA-Z]+)\s*[0-9]\s*(?P<turbomole_basis_prim_number>[0-9]+)\s*(?P<turbomole_basis_cont_number>[0-9]+)\s*(?P<turbomole_basis_type>[a-zA-Z-a-zA-Z]+)"
+                SM (r"\s*(?P<turbomole_geometry_atom_labels>[a-zA-Z]+)\s*[0-9]\s*(?P<turbomole_basis_prim_number>[0-9]+)\s*(?P<turbomole_basis_cont_number>[0-9]+)\s*(?P<turbomole_basis_type>[a-zA-Z-a-zA-Z]+)"
                    ,repeats = True)
                 ]),
             # only the first character is important for aims                    
@@ -146,10 +146,10 @@ def build_TurbomoleMainFileSimpleMatcher():
         SM (r"\s*-{20}-*", weak = True),                                        
         SM (startReStr = r"\s*atomic coordinates\s*atom    charge  isotop\s",   
             subMatchers = [                                                     
-            SM (r"\s*(?P<turbomole_geometry_atom_position_x__angstrom>[-+0-9.]+)\s+"
-                 "(?P<turbomole_geometry_atom_position_y__angstrom>[-+0-9.]+)\s+"
-                 "(?P<turbomole_geometry_atom_position_z__angstrom>[-+0-9.]+)\s+"
-                 "(?P<turbomole_geometry_atom_label>[a-zA-Z]+)", repeats = True)
+            SM (r"\s*(?P<turbomole_geometry_atom_positions_x__angstrom>[-+0-9.]+)\s+"
+                 "(?P<turbomole_geometry_atom_positions_y__angstrom>[-+0-9.]+)\s+"
+                 "(?P<turbomole_geometry_atom_positions_z__angstrom>[-+0-9.]+)\s+"
+                 "(?P<turbomole_geometry_atom_labels>[a-zA-Z]+)", repeats = True)
             ])                                                                  
         ])                                                                      
 
