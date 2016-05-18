@@ -160,7 +160,7 @@ def build_TurbomoleMainFileSimpleMatcher():
         startReStr = r"\s*ITERATION  ENERGY          1e\-ENERGY        2e\-ENERGY     NORM\[dD\(SAO\)\]  TOL",                          
         subMatchers = [                                                         
         SM(r"\s*current damping\s*:\s*(?P<turbomole_energy_scf_damping>[.0-9]+)", repeats= True),
-        SM (r"\s*(?P<turbomole_iteration_number>[0-9]+)\s*(?P<energy_total_scf_iteration__eV>[-+0-9.eEdD]+)\s*(?P<turbomole_energy_one_scf_iteration__eV>[-+0-9.eEdD]+)"
+        SM (r"\s*(?P<turbomole_iteration_number>[0-9]+)\s*(?P<turbomole_energy_total_scf_iteration__eV>[-+0-9.eEdD]+)\s*(?P<turbomole_energy_one_scf_iteration__eV>[-+0-9.eEdD]+)"
              "\s*(?P<turbomole_energy_two_scf_iteration__eV>[-+0-9.eEdD]+)\s*(?P<turbomole_energy_norm_scf_iteration__eV>[-+0-9.eEdD]+)\s*(?P<turbomole_energy_tolerance_scf_iteration__eV>[-+0-9.eEdD]+)")
         ])   
     ########################################                                    
@@ -189,7 +189,7 @@ def build_TurbomoleMainFileSimpleMatcher():
             required = True,                                                    
             forwardMatch = True,                                                
             fixedStartValues={'program_name': 'Turbomole', 'program_basis_set_type': 'numeric AOs' },
-            sections = ['section_run'],                                         
+            #sections = ['section_run'],                                         
             subMatchers = [                                                     
             # header specifing version, compilation info, task assignment       
              #-----------(3)output: single configuration-------                 
