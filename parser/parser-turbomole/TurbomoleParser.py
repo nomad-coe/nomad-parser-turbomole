@@ -157,12 +157,27 @@ def build_TurbomoleMainFileSimpleMatcher():
     # submatcher for total energy components during SCF interation              
     TotalEnergyScfSubMatcher = SM (name = 'TotalEnergyScf',                    
         repeats =True, 
-        startReStr = r"\s*ITERATION  ENERGY          1e\-ENERGY        2e\-ENERGY     NORM\[dD\(SAO\)\]  TOL",                          
+        #startReStr = r"\s*ITERATION  ENERGY          1e\-ENERGY        2e\-ENERGY     NORM\[dD\(SAO\)\]  TOL",                          
+        startReStr = r"\s*current damping\s*:\s*",                          
+        forwardMatch = True,
         subMatchers = [                                                         
-        SM(r"\s*current damping\s*:\s*(?P<turbomole_energy_scf_damping>[.0-9]+)", repeats= True),
+        SM(r"\s*current damping\s*:\s*(?P<turbomole_energy_scf_damping>[0-9.eEdD]+)"),
         SM (r"\s*(?P<turbomole_iteration_number>[0-9]+)\s*(?P<turbomole_energy_total_scf_iteration__eV>[-+0-9.eEdD]+)\s*(?P<turbomole_energy_one_scf_iteration__eV>[-+0-9.eEdD]+)"
              "\s*(?P<turbomole_energy_two_scf_iteration__eV>[-+0-9.eEdD]+)\s*(?P<turbomole_energy_norm_scf_iteration__eV>[-+0-9.eEdD]+)\s*(?P<turbomole_energy_tolerance_scf_iteration__eV>[-+0-9.eEdD]+)")
         ])   
+    ########################################                                    
+    # submatcher for final total energy components               
+    TotalEnergySubMatcher = SM (name = 'TotalEnergyFinal',                     
+        startReStr = r"\s*\|\s*total energy\s*\=",                            
+        forwardMatch = True,
+        subMatchers = [                                                         
+        SM (r"\s*\|\s*total energy\s*\=\s*(?P<turbomole_total_energy_final__eV>[-+0-9.eEdD]+)"),
+        SM (r"\s*\:\s*kinetic energy\s*\=\s*(?P<turbomole_kinetic_energy_final__eV>[-+0-9.eEdD]+)"),
+        SM (r"\s*\:\s*potential energy\s*\=\s*(?P<turbomole_potential_energy_final__eV>[-+0-9.eEdD]+)"),
+        SM (r"\s*\:\s*virial theorem\s*\=\s*(?P<turbomole_virial_theorem_final__eV>[-+0-9.eEdD]+)"),
+        SM (r"\s*\:\s*wavefunction norm\s*\=\s*(?P<turbomole_wave_func_norm__eV>[-+0-9.eEdD]+)")
+        
+        ]) 
     ########################################                                    
     # return main Parser                                                        
     ########################################                                    
@@ -207,20 +222,24 @@ def build_TurbomoleMainFileSimpleMatcher():
                 SM (name = 'SingleConfigurationCalculation',                    
                     startReStr = r"\s*start vectors will be provided from a core hamilton",
                     repeats = True,                                             
-                    sections = ['section_single_configuration_calculation'],    
-                    subMatchers = [                                             
+#                    sections = ['section_single_configuration_calculation'],    
+                    subMatchers = [
                     # initialization of SCF loop, SCF iteration 0               
-                    SM (name = 'ScfInitialization',                             
+                    SM (name = 'ScfInitialization',                            
                         startReStr = r"\s*STARTING INTEGRAL EVALUATION FOR 1st SCF ITERATION",
                         sections = ['section_scf_iteration'],                   
                         subMatchers = [                                         
-                        TotalEnergyScfSubMatcher                               
-                        ]) # END ScfInitialization  
-                     ]) # END SingleConfigurationCalculation
-                                                                                
-           ]) # CLOSING SM NewRun                                               
-                                                                                
-                                                                                
+                        TotalEnergyScfSubMatcher#,
+            #            TotalEnergySubMatcher                               
+                        ]), # END ScfInitialization  
+              SM (name = 'TotalEnergyComponentsFinal',                          
+                  startReStr = r"\s*-{20}-*",                                   
+                  sections = ['section_scf_iteration'],                         
+                  subMatchers = [                                               
+                 TotalEnergySubMatcher                                          
+                  ])  
+                     ])#, # END SingleConfigurationCalculation
+           ]), # CLOSING SM NewRun                                               
         ]) # END Root  
 
 def get_cachingLevelForMetaName(metaInfoEnv):
