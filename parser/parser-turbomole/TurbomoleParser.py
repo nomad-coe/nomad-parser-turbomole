@@ -157,7 +157,6 @@ def build_TurbomoleMainFileSimpleMatcher():
     # submatcher for total energy components during SCF interation              
     TotalEnergyScfSubMatcher = SM (name = 'TotalEnergyScf',                    
         repeats =True, 
-        #startReStr = r"\s*ITERATION  ENERGY          1e\-ENERGY        2e\-ENERGY     NORM\[dD\(SAO\)\]  TOL",                          
         startReStr = r"\s*current damping\s*:\s*",                          
         forwardMatch = True,
         subMatchers = [                                                         
@@ -204,10 +203,7 @@ def build_TurbomoleMainFileSimpleMatcher():
             required = True,                                                    
             forwardMatch = True,                                                
             fixedStartValues={'program_name': 'Turbomole', 'program_basis_set_type': 'numeric AOs' },
-            #sections = ['section_run'],                                         
             subMatchers = [                                                     
-            # header specifing version, compilation info, task assignment       
-             #-----------(3)output: single configuration-------                 
 	    #controlInOutSubMatcher,
             SM (name = 'SectionMethod',                                         
                 startReStr = r"\s*SCF run will be profiled \!",
@@ -222,7 +218,6 @@ def build_TurbomoleMainFileSimpleMatcher():
                 SM (name = 'SingleConfigurationCalculation',                    
                     startReStr = r"\s*start vectors will be provided from a core hamilton",
                     repeats = True,                                             
-#                    sections = ['section_single_configuration_calculation'],    
                     subMatchers = [
                     # initialization of SCF loop, SCF iteration 0               
                     SM (name = 'ScfInitialization',                            
@@ -230,7 +225,6 @@ def build_TurbomoleMainFileSimpleMatcher():
                         sections = ['section_scf_iteration'],                   
                         subMatchers = [                                         
                         TotalEnergyScfSubMatcher#,
-            #            TotalEnergySubMatcher                               
                         ]), # END ScfInitialization  
               SM (name = 'TotalEnergyComponentsFinal',                          
                   startReStr = r"\s*-{20}-*",                                   
