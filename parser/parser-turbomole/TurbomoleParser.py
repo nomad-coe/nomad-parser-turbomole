@@ -107,7 +107,7 @@ def build_TurbomoleMainFileSimpleMatcher():
                 sections = ['section_basis_set','section_system'],                                    
                 subMatchers = [
                 # SM (r"\s*-{20}-*", weak = True),                                                 
-                SM (r"\s*(?P<turbomole_geometry_atom_labels>[a-zA-Z]+)\s*[0-9]\s*(?P<turbomole_basis_prim_number>[0-9]+)\s*(?P<turbomole_basis_cont_number>[0-9]+)\s*(?P<turbomole_basis_type>[a-zA-Z-a-zA-Z]+)"
+                SM (r"\s*(?P<turbomole_geometry_atom_labels>[a-zA-Z]+)\s*[0-9]+\s*(?P<turbomole_basis_prim_number>[0-9]+)\s*(?P<turbomole_basis_cont_number>[0-9]+)\s*(?P<turbomole_basis_type>[a-zA-Z-a-zA-Z]+)"
                    ,repeats = True)
                 ]),
             # only the first character is important for aims                    
@@ -149,7 +149,7 @@ def build_TurbomoleMainFileSimpleMatcher():
             SM (r"\s*(?P<turbomole_geometry_atom_positions_x__angstrom>[-+0-9.]+)\s+"
                  "(?P<turbomole_geometry_atom_positions_y__angstrom>[-+0-9.]+)\s+"
                  "(?P<turbomole_geometry_atom_positions_z__angstrom>[-+0-9.]+)\s+"
-                 "(?P<turbomole_geometry_atom_labels>[a-zA-Z]+)", repeats = True)
+                 "(?P<turbomole_geometry_atom_labels>[a-zA-Z]+)\s+(?P<turbomole_geometry_atom_charge>[0-9.]+)", repeats = True)
             ])                                                                  
         ])                                                                      
 
@@ -181,6 +181,21 @@ def build_TurbomoleMainFileSimpleMatcher():
         SM (r"\s*\:\s*wavefunction norm\s*\=\s*(?P<turbomole_wave_func_norm__eV>[-+0-9.eEdD]+)")
         
         ]) 
+    ########################################                                    
+    # submatcher for final total energy components                              
+    EmbeddingSubMatcher = SM (name = 'PeriodicEmbedding',                      
+        startReStr = r"\s*\+------------------------ Parameters ------------------------\+",                              
+        forwardMatch = True,                                                    
+        subMatchers = [                                                         
+        SM (r"\s*Maximum multipole moment used               :\s*(?P<turbomole_max_multipole_moment>[0-9]+)"),
+        SM (r"\s*Multipole precision parameter               :\s*(?P<turbomole_multipole_precision_parameter>[-+0-9.eEdD]+)"),
+        SM (r"\s*Minimum separation between cells            :\s*(?P<turbomole_min_separation_cells>[-+0-9.eEdD]+)"),
+        SM (r"\s*\+-----------------------------------------------------------\+\s*"),
+        SM (r"\s*Charge Neutrality tolerance :\s*(?P<turbomole_charge_neutrality_tol>[-+0-9.eEdD]+)"),
+        SM (r"\s*Total charge                :\s*(?P<turbomole_total_charge>[-+0-9.eEdD]+)"),
+
+                                                                                
+        ])  
     ########################################                                    
     # return main Parser                                                        
     ########################################                                    
@@ -220,9 +235,16 @@ def build_TurbomoleMainFileSimpleMatcher():
 
               # the actual section for a single configuration calculation starts here
             SM (name = 'SingleConfigurationCalculation',                    
-                  startReStr = r"\s*start vectors will be provided from a core hamilton",
+                  #startReStr = r"\s*start vectors will be provided from a core hamilton",
+                  startReStr = r"\s*\-ecp\-  integrals",
                   repeats = True,                                             
                   subMatchers = [
+                  SM (name = 'PeriodicEmbeddingSettings',                      
+                      startReStr = r"\s*\|\s*EMBEDDING IN PERIODIC POINT CHARGES\s*\|",
+                      sections = ['section_method'],                     
+                      subMatchers = [                                           
+                      EmbeddingSubMatcher                                     
+                      ]),
                   SM (name = 'TotalEnergyForEachScfCycle',                            
                       startReStr = r"\s*STARTING INTEGRAL EVALUATION FOR 1st SCF ITERATION",
                       sections = ['section_scf_iteration'],                   
