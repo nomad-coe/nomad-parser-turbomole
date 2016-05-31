@@ -201,7 +201,13 @@ def build_TurbomoleMainFileSimpleMatcher():
                  "(?P<turbomole_embed_geometry_atom_positions_x__angstrom>[-+0-9.]+)\s+"
                  "(?P<turbomole_embed_geometry_atom_positions_y__angstrom>[-+0-9.]+)\s+"
                  "(?P<turbomole_embed_geometry_atom_positions_z__angstrom>[-+0-9.]+)\s+"
-                 "(?P<turbomole_embed_geometry_atom_charge>[-+0-9.]+)", repeats = True)
+                 "(?P<turbomole_embed_geometry_atom_charge>[-+0-9.]+)", repeats = True),
+            SM (r"\s*QM cluster transformed to the center of cell 0 \(au\)\:"),                       
+            SM (r"\s*Atom               Cartesian Coordinates"),
+            SM (r"\s*(?P<turbomole_embed_qm_cluster_geometry_atom_label>[a-zA-Z]+)\s+"     
+                 "(?P<turbomole_embed_qm_cluster_geometry_atom_positions_x__angstrom>[-+0-9.]+)\s+"
+                 "(?P<turbomole_embed_qm_cluster_geometry_atom_positions_y__angstrom>[-+0-9.]+)\s+"
+                 "(?P<turbomole_embed_qm_cluster_geometry_atom_positions_z__angstrom>[-+0-9.]+)\s+",repeats = True)
             ]) 
                                                                                 
         ])  
