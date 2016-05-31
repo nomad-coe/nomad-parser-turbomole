@@ -8,7 +8,7 @@ from TurbomoleCommon import get_metaInfo
 import logging, os, re, sys
 
 ############################################################
-# This is the parser for the main file of qbox.
+# This is the parser for the main file of turbomole.
 ############################################################
 
 logger = logging.getLogger("nomad.turbomoleParser") 
@@ -74,7 +74,7 @@ class TurbomoleParserContext(object):
 #############################################################
 
 def build_TurbomoleMainFileSimpleMatcher():
-    """Builds the SimpleMatcher to parse the main file of qbox.
+    """Builds the SimpleMatcher to parse the main file of turbomole.
 
     First, several subMatchers are defined, which are then used to piece together
     the final SimpleMatcher.
@@ -193,7 +193,16 @@ def build_TurbomoleMainFileSimpleMatcher():
         SM (r"\s*\+-----------------------------------------------------------\+\s*"),
         SM (r"\s*Charge Neutrality tolerance :\s*(?P<turbomole_charge_neutrality_tol>[-+0-9.eEdD]+)"),
         SM (r"\s*Total charge                :\s*(?P<turbomole_total_charge>[-+0-9.eEdD]+)"),
-
+        SM (startReStr = r"\s*\|\s*Coordinates of all systems centered about cell 0\s*\|",   
+            subMatchers = [
+            SM (r"\s*Redefined unit cell content (au):"),                                                     
+            SM (r"\s*Label               Cartesian Coordinates            Charge"),                                                     
+            SM (r"\s*(?P<turbomole_embed_geometry_atom_label>[a-zA-Z]+)\s+"
+                 "(?P<turbomole_embed_geometry_atom_positions_x__angstrom>[-+0-9.]+)\s+"
+                 "(?P<turbomole_embed_geometry_atom_positions_y__angstrom>[-+0-9.]+)\s+"
+                 "(?P<turbomole_embed_geometry_atom_positions_z__angstrom>[-+0-9.]+)\s+"
+                 "(?P<turbomole_embed_geometry_atom_charge>[-+0-9.]+)", repeats = True)
+            ]) 
                                                                                 
         ])  
     ########################################                                    
@@ -284,7 +293,7 @@ def get_cachingLevelForMetaName(metaInfoEnv):
 def main():
     """Main function.
 
-    Set up everything for the parsing of the qbox main file and run the parsing.
+    Set up everything for the parsing of the turbomole main file and run the parsing.
     """
     # get main file description
     TurbomoleMainFileSimpleMatcher = build_TurbomoleMainFileSimpleMatcher()
