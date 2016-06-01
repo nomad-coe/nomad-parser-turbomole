@@ -107,29 +107,29 @@ def build_TurbomoleMainFileSimpleMatcher():
                 sections = ['section_basis_set','section_system'],                                    
                 subMatchers = [
                 # SM (r"\s*-{20}-*", weak = True),                                                 
-                SM (r"\s*(?P<turbomole_geometry_atom_labels>[a-zA-Z]+)\s*[0-9]+\s*(?P<turbomole_basis_prim_number>[0-9]+)\s*(?P<turbomole_basis_cont_number>[0-9]+)\s*(?P<turbomole_basis_type>[a-zA-Z-a-zA-Z]+)"
+                SM (r"\s*(?P<turbomole_controlInOut_atom_labels>[a-zA-Z]+)\s*[0-9]+\s*(?P<turbomole_controlInOut_basis_prim_number>[0-9]+)\s*(?P<turbomole_controlInOut_basis_cont_number>[0-9]+)\s*(?P<turbomole_controlInOut_basis_type>[a-zA-Z-a-zA-Z]+)"
                    ,repeats = True)
                 ]),
             # only the first character is important for aims                    
-            SM (r"\s*total number of primitive shells\s*:\s*(?P<turbomole_tot_primitive_shells>[0-9]+)",sections = ['section_basis_set'], repeats = True),
-            SM (r"\s*total number of contracted shells\s*:\s*(?P<turbomole_tot_contracted_shells>[0-9]+)",sections = ['section_basis_set'], repeats = True),
-            SM (r"\s*total number of cartesian basis functions\s*:\s*(?P<turbomole_tot_cartesian_func>[0-9]+)",sections = ['section_basis_set'], repeats = True),   
-            SM (r"\s*total number of SCF-basis functions\s*:\s*(?P<turbomole_tot_scf_basis_func>[0-9]+)",sections = ['section_basis_set'], repeats = True),
+            SM (r"\s*total number of primitive shells\s*:\s*(?P<turbomole_controlInOut_tot_primitive_shells>[0-9]+)",sections = ['section_basis_set'], repeats = True),
+            SM (r"\s*total number of contracted shells\s*:\s*(?P<turbomole_controlInOut_tot_contracted_shells>[0-9]+)",sections = ['section_basis_set'], repeats = True),
+            SM (r"\s*total number of cartesian basis functions\s*:\s*(?P<turbomole_controlInOut_tot_cartesian_func>[0-9]+)",sections = ['section_basis_set'], repeats = True),   
+            SM (r"\s*total number of SCF-basis functions\s*:\s*(?P<turbomole_controlInOut_tot_scf_basis_func>[0-9]+)",sections = ['section_basis_set'], repeats = True),
             SM (name = 'Density functional informations',                                
                 startReStr = r"\s*density functional",           
                 sections = ['section_system'],  
                 subMatchers = [                                                 
-                SM (r"\s*(?P<turbomole_functional_type>[a-zA-Z-a-zA-Z0-9]+)\s*(?: functional)"),
-                SM (r"\s*exchange:\s*(?P<turbomole_functional_type_exchange>[a-zA-Z-+a-zA-Z0-9\(\)\s]+)"),
-                SM (r"\s*correlation:\s*(?P<turbomole_functional_type_correlation>[a-zA-Z-+a-zA-Z0-9\(\)\s]+)"),
-                SM (r"\s*spherical integration\s*:\s*(?P<turbomole_grid_integration>[a-zA-Z\'\s]+)"),
-                SM (r"\s*spherical gridsize\s*:\s*(?P<turbomole_grid_size>[0-9]+)"),
-                SM (r"\s*i\.e\. gridpoints\s*:\s*(?P<turbomole_grid_points_number>[0-9]+)"),
-                SM (r"\s*radial integration\s*:\s*(?P<turbomole_grid_radial_integration>[a-zA-Z0-9\(\)\s]+)"),
-                SM (r"\s*radial gridsize\s*:\s*(?P<turbomole_grid_radial_gridsize>[0-9]+)"),
-                SM (r"\s*integration cells\s*:\s*(?P<turbomole_grid_integration_cells>[0-9]+)"),
-                SM (r"\s*partition function\s*:\s*(?P<turbomole_grid_partition_func>[a-zA-Z]+)"),
-                SM (r"\s*partition sharpness\s*:\s*(?P<turbomole_grid_partition_sharpness>[0-9]+)")
+                SM (r"\s*(?P<turbomole_controlInOut_functional_type>[a-zA-Z-a-zA-Z0-9]+)\s*(?: functional)"),
+                SM (r"\s*exchange:\s*(?P<turbomole_controlInOut_functional_type_exchange>[a-zA-Z-+a-zA-Z0-9\(\)\s]+)"),
+                SM (r"\s*correlation:\s*(?P<turbomole_controlInOut_functional_type_correlation>[a-zA-Z-+a-zA-Z0-9\(\)\s]+)"),
+                SM (r"\s*spherical integration\s*:\s*(?P<turbomole_controlInOut_grid_integration>[a-zA-Z\'\s]+)"),
+                SM (r"\s*spherical gridsize\s*:\s*(?P<turbomole_controlInOut_grid_size>[0-9]+)"),
+                SM (r"\s*i\.e\. gridpoints\s*:\s*(?P<turbomole_controlInOut_grid_points_number>[0-9]+)"),
+                SM (r"\s*radial integration\s*:\s*(?P<turbomole_controlInOut_grid_radial_integration>[a-zA-Z0-9\(\)\s]+)"),
+                SM (r"\s*radial gridsize\s*:\s*(?P<turbomole_controlInOut_grid_radial_grid_size>[0-9]+)"),
+                SM (r"\s*integration cells\s*:\s*(?P<turbomole_controlInOut_grid_integration_cells>[0-9]+)"),
+                SM (r"\s*partition function\s*:\s*(?P<turbomole_controlInOut_grid_partition_func>[a-zA-Z]+)"),
+                SM (r"\s*partition sharpness\s*:\s*(?P<turbomole_controlInOut_grid_partition_sharpness>[0-9]+)")
                   ])  
                 ]) # END ControlInOutLines                                     
         #SM (r"\s*-{20}-*", weak = True)                                         
@@ -288,8 +288,9 @@ def get_cachingLevelForMetaName(metaInfoEnv):
 
     # Set caching for temparary storage variables
     for name in metaInfoEnv.infoKinds:
-        if (   name.startswith('turbomole_')
-            or name.startswith('turbomole_')):
+        if (   name.startswith('turbomole_controlInOut')
+            or name.startswith('turbomole_geometry')
+            or name.startswith('turbomole_embed')):
             cachingLevelForMetaName[name] = CachingLevel.Cache
     return cachingLevelForMetaName
 
