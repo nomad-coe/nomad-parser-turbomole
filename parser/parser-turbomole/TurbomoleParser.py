@@ -224,7 +224,7 @@ def build_TurbomoleMainFileSimpleMatcher():
             SM (name = 'ProgramHeader',                                         
                 startReStr = r"\s*RUNNING PROGRAM",                    
                 subMatchers = [                                                 
-                SM (r"\s*dscf \(thnec244\) \: TURBOMOLE V(?P<turbomole_program_version>[0-9.()\s]+)")       
+                SM (r"\s*dscf \((?P<turbomole_nodename>[a-zA-Z0-9]+)\) \: TURBOMOLE V(?P<turbomole_program_version>[0-9.]+)")       
                 ]), # END ProgramHeader
         #=============================================================================
         #  read OUPUT file *.r, the method part comes from INPUT file *.i,  so we 
