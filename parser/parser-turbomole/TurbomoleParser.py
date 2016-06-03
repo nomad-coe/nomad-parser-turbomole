@@ -135,6 +135,40 @@ def build_TurbomoleMainFileSimpleMatcher():
         #SM (r"\s*-{20}-*", weak = True)                                         
         ])    
 
+    ########################################                                    
+    # submatcher for eigenvalues                                                
+    # first define function to build subMatcher for normal case and scalar ZORA 
+    def build_eigenvaluesGroupSubMatcher(addStr):                               
+        """Builds the SimpleMatcher to parse the normal and the scalar ZORA eigenvalues in aims.
+                                                                                
+        Args:                                                                   
+            addStr: String that is appended to the metadata names.              
+                                                                                
+        Returns:                                                                
+            SimpleMatcher that parses eigenvalues with metadata according to addStr. 
+        """                                                                     
+        # submatcher for eigenvalue list                                        
+        EigenvaluesListSubMatcher =  SM (name = 'EigenvaluesLists',             
+            startReStr = r"\s*alpha:",
+            sections = ['turbomole_section_eigenvalues_list%s' % addStr],        
+            subMatchers = [                                                     
+            SM (r"\s*irrep\s*(?P<turbomole_irreducible_representation_state%s>[0-9a-z\s]+)\s*eigenvalues H\s*[-+0-9.eEdD\s]+\s+eV\s*(?P<turbomole_eigenvalue_eigenvalue%s__eV>[-+0-9.eEdD\s]+)"
+                r"\s*occupation\s*(?P<turbomole_eigenvalue_occupation%s>[0-9.\s]+)" % (3 * (addStr,)), repeats = True)
+            ]) 
+        return SM (name = 'EigenvaluesGroup',                                   
+            startReStr = "",                 
+            sections = ['turbomole_section_eigenvalues_group%s' % addStr],       
+            subMatchers = [                                                     
+            SM (name = 'EigenvaluesNoSpinNonPeriodic',                          
+                startReStr = r"\s*alpha:",
+                sections = ['turbomole_section_eigenvalues_spin%s' % addStr],    
+                forwardMatch = True,                                            
+                subMatchers = [                                                 
+                EigenvaluesListSubMatcher.copy()                                
+                ]), # END EigenvaluesNoSpinNonPeriodic                          
+            ])                                                                  
+    # now construct the two subMatchers                                         
+    EigenvaluesGroupSubMatcher = build_eigenvaluesGroupSubMatcher('')   
     #####################################################################
     # subMatcher for geometry                                                   
     # the verbatim writeout of the geometry.in is not considered for getting the structure data
@@ -265,7 +299,8 @@ def build_TurbomoleMainFileSimpleMatcher():
                       sections = ['section_scf_iteration'],                   
                       subMatchers = [                                         
                       TotalEnergyScfSubMatcher,
-                      TotalEnergySubMatcher                                          
+                      TotalEnergySubMatcher,                                          
+                      EigenvaluesGroupSubMatcher    
                       ])#, # END ScfInitialization  
                    ])#, # END SingleConfigurationCalculation
            ]), # CLOSING SM NewRun                                               
