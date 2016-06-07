@@ -152,8 +152,10 @@ def build_TurbomoleMainFileSimpleMatcher():
             startReStr = r"\s*alpha:",
             sections = ['turbomole_section_eigenvalues_list%s' % addStr],        
             subMatchers = [                                                     
-            SM (r"\s*irrep\s*(?P<turbomole_irreducible_representation_state%s>[0-9a-z\s]+)\s*eigenvalues H\s*[-+0-9.eEdD\s]+\s+eV\s*(?P<turbomole_eigenvalue_eigenvalue%s__eV>[-+0-9.eEdD\s]+)"
-                r"\s*occupation\s*(?P<turbomole_eigenvalue_occupation%s>[0-9.\s]+)" % (3 * (addStr,)), repeats = True)
+        	 SM (r"\s*irrep\s*(?P<turbomole_irreducible_representation_state%s>[0-9a-z\s]+)" % (1 * (addStr,)), repeats = True)#,
+#	         SM (r"\s*eigenvalues H\s*[-+0-9.eEdD\s]+", repeats = True),
+#                 SM (r"\s*eV\s*(?P<turbomole_eigenvalue_eigenvalue%s__eV>[-+0-9.eEdD\s]+)" % (1 * (addStr,)), repeats = True),
+#                 SM (r"\s*occupation\s*(?P<turbomole_eigenvalue_occupation%s>[0-9.\s]+)" % (1 * (addStr,)), repeats = True)
             ]) 
         return SM (name = 'EigenvaluesGroup',                                   
             startReStr = "",                 
@@ -167,7 +169,7 @@ def build_TurbomoleMainFileSimpleMatcher():
                 EigenvaluesListSubMatcher.copy()                                
                 ]), # END EigenvaluesNoSpinNonPeriodic                          
             ])                                                                  
-    # now construct the two subMatchers                                         
+   # now construct the two subMatchers                                         
     EigenvaluesGroupSubMatcher = build_eigenvaluesGroupSubMatcher('')   
     #####################################################################
     # subMatcher for geometry                                                   
@@ -298,12 +300,19 @@ def build_TurbomoleMainFileSimpleMatcher():
                       startReStr = r"\s*STARTING INTEGRAL EVALUATION FOR 1st SCF ITERATION",
                       sections = ['section_scf_iteration'],                   
                       subMatchers = [                                         
+                      #EigenvaluesGroupSubMatcher,    
                       TotalEnergyScfSubMatcher,
-                      TotalEnergySubMatcher,                                          
-                      EigenvaluesGroupSubMatcher    
-                      ])#, # END ScfInitialization  
+                      TotalEnergySubMatcher#,                                          
+                      #EigenvaluesGroupSubMatcher    
+                      ]), # END ScfInitialization 
+                  SM (name = 'EigenvaluesGroupSubMatcher',                      
+                      startReStr = r"\s*alpha:",
+                      #sections = ['section_scf_iteration'],                     
+                      subMatchers = [                                           
+                      EigenvaluesGroupSubMatcher                               
+                      ]) 
                    ])#, # END SingleConfigurationCalculation
-           ]), # CLOSING SM NewRun                                               
+           ]) # CLOSING SM NewRun                                               
         ]) # END Root  
 
 def get_cachingLevelForMetaName(metaInfoEnv):
