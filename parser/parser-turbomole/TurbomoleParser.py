@@ -149,20 +149,20 @@ def build_TurbomoleMainFileSimpleMatcher():
         """                                                                     
         # submatcher for eigenvalue list                                        
         EigenvaluesListSubMatcher =  SM (name = 'EigenvaluesLists',             
-            startReStr = r"\s*alpha:",
+            startReStr = r"\s*(?: alpha|beta)\:\s*",
             sections = ['turbomole_section_eigenvalues_list%s' % addStr],        
             subMatchers = [                                                     
-        	 SM (r"\s*irrep\s*(?P<turbomole_irreducible_representation_state%s>[0-9a-z\s]+)" % (1 * (addStr,)), repeats = True)#,
-#	         SM (r"\s*eigenvalues H\s*[-+0-9.eEdD\s]+", repeats = True),
-#                 SM (r"\s*eV\s*(?P<turbomole_eigenvalue_eigenvalue%s__eV>[-+0-9.eEdD\s]+)" % (1 * (addStr,)), repeats = True),
-#                 SM (r"\s*occupation\s*(?P<turbomole_eigenvalue_occupation%s>[0-9.\s]+)" % (1 * (addStr,)), repeats = True)
+        	 SM (r"\s*(?: irrep)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a-z\s]+)" % (1 * (addStr,)), repeats = True),
+                 SM (r"\s*(?: eigenvalues H)\s*[-+0-9.eEdD\s]+", repeats = True)#,
+#                 SM (r"\s*(?: eV)\s*(?P<turbomole_eigenvalue_eigenvalue%s>[-+0-9.eEdD\s]+)" % (1 * (addStr,)), repeats = True)#,
+#                 SM (r"\s*(?: occupation)\s*(?P<turbomole_eigenvalue_occupation%s>[0-9.\s]+)" % (1 * (addStr,)), repeats = True)
             ]) 
         return SM (name = 'EigenvaluesGroup',                                   
-            startReStr = "",                 
+            startReStr = "\s*(?: alpha|beta)\:\s*",                 
             sections = ['turbomole_section_eigenvalues_group%s' % addStr],       
             subMatchers = [                                                     
-            SM (name = 'EigenvaluesNoSpinNonPeriodic',                          
-                startReStr = r"\s*alpha:",
+            SM (name = 'EigenvaluesNoSpin',                          
+                startReStr = r"\s*(?: alpha|beta)\:\s*",
                 sections = ['turbomole_section_eigenvalues_spin%s' % addStr],    
                 forwardMatch = True,                                            
                 subMatchers = [                                                 
@@ -306,7 +306,8 @@ def build_TurbomoleMainFileSimpleMatcher():
                       #EigenvaluesGroupSubMatcher    
                       ]), # END ScfInitialization 
                   SM (name = 'EigenvaluesGroupSubMatcher',                      
-                      startReStr = r"\s*alpha:",
+                      startReStr = r"\s*orbitals \$[a-zA-Z_]+ (?: will be written to file) [a-zA-Z]+",
+                      #startReStr = r"\s*alpha:",
                       #sections = ['section_scf_iteration'],                     
                       subMatchers = [                                           
                       EigenvaluesGroupSubMatcher                               
