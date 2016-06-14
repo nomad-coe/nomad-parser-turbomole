@@ -138,6 +138,8 @@ def build_TurbomoleMainFileSimpleMatcher():
     ########################################                                    
     # submatcher for eigenvalues                                                
     # first define function to build subMatcher for normal case and scalar ZORA 
+
+    # Here the separation between the parsed string of eigenvalues needs to be done! 
     def build_eigenvaluesGroupSubMatcher(addStr):                               
         """Builds the SimpleMatcher to parse the normal and the scalar ZORA eigenvalues in aims.
                                                                                 
@@ -152,9 +154,9 @@ def build_TurbomoleMainFileSimpleMatcher():
             startReStr = r"\s*(?: alpha|beta)\:\s*",
             sections = ['turbomole_section_eigenvalues_list%s' % addStr],        
             subMatchers = [                                                     
-        	 SM (r"\s*(?: irrep)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a-z\s]+)" % (1 * (addStr,)), repeats = True),
-                 SM (r"\s*(?: eigenvalues H)\s*[-+0-9.eEdD\s]+", repeats = True)#,
-#                 SM (r"\s*(?: eV)\s*(?P<turbomole_eigenvalue_eigenvalue%s>[-+0-9.eEdD\s]+)" % (1 * (addStr,)), repeats = True)#,
+        	 SM (r"\s*(?: irrep)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % (1 * (addStr,)), repeats = True),
+                 SM (r"\s*(?: eigenvalues H)\s*[-+0-9.eEdD\s]+", repeats = True),
+                 SM (r"\s*(?: eV)\s*(?P<turbomole_eigenvalue_eigenvalue%s>[-+0-9.eEdD]+)" % (1 * (addStr,)), repeats = True)#,
 #                 SM (r"\s*(?: occupation)\s*(?P<turbomole_eigenvalue_occupation%s>[0-9.\s]+)" % (1 * (addStr,)), repeats = True)
             ]) 
         return SM (name = 'EigenvaluesGroup',                                   
@@ -306,8 +308,8 @@ def build_TurbomoleMainFileSimpleMatcher():
                       #EigenvaluesGroupSubMatcher    
                       ]), # END ScfInitialization 
                   SM (name = 'EigenvaluesGroupSubMatcher',                      
-                      startReStr = r"\s*orbitals \$[a-zA-Z_]+ (?: will be written to file) [a-zA-Z]+",
-                      #startReStr = r"\s*alpha:",
+                      #startReStr = r"\s*orbitals \$(?: uhfmo\_alpha|uhfmo\_beta) (?: will be written to file) (?: alpha|beta) ",
+                      startReStr = r"\s+orbitals [a-zA-Z\$\_]+ (?: will be written to file) [a-zA-Z]+",
                       #sections = ['section_scf_iteration'],                     
                       subMatchers = [                                           
                       EigenvaluesGroupSubMatcher                               
