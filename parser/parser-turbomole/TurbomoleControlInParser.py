@@ -79,6 +79,21 @@ def build_TurbomoleControlInKeywordsSimpleMatchers():
         #SM (r"\s*\$thize\s+(?P<turbomole_controlIn_number_of_integral_stored>[.0-9.eEdD]+)"),
         SM (r"\s*\$thime\s+(?P<turbomole_controlIn_time_for_integral_calc>[0-9]+)"),
         SM (r"\s*\$scfdamp\s+start\=(?P<turbomole_controlIn_damping_parameter_start>[.0-9]+)\s*step\=\s*(?P<turbomole_controlIn_damping_parameter_step>[.0-9]+)\s*min\=\s*(?P<turbomole_controlIn_damping_parameter_min>[.0-9]+)"),
+        SM (startReStr = r"\s*\$scfintunit",                                      
+            forwardMatch = True,                                                
+            subMatchers = [                                                     
+            SM (r"\s*unit\=(?P<turbomole_controlIn_scfintunit_unit>[0-9]+)\s*size\=\s*(?P<turbomole_controlIn_scfintunit_size>[0-9]+)\s*file\=\s*(?P<turbomole_controlIn_scfintunit_file>[a-zA-Z]+)")#,
+            ]),
+        SM (startReStr = r"\s*\$drvopt",                                   
+            forwardMatch = True,                                                
+            subMatchers = [  
+            SM (r"\s*(?:cartesian)\s+(?P<turbomole_controlIn_cartesian_status>[a-zA-Z]+)"),
+            SM (r"\s*(?:basis)\s+(?P<turbomole_controlIn_basis_status>[a-z-A-Z]+)"),
+            SM (r"\s*(?:global)\s+(?P<turbomole_controlIn_global_status>[a-zA-Z]+)"),
+            SM (r"\s*(?:hessian)\s+(?P<turbomole_controlIn_hessian_status>[a-z-A-Z]+)"),
+            SM (r"\s*(?:dipole)\s+(?P<turbomole_controlIn_dipole_status>[a-zA-Z]+)"),
+            SM (r"\s*(?:\$interconversion)\s+(?P<turbomole_controlIn_interconversion_status>[a-zA-Z]+)")
+            ])
         ]
 
 def build_TurbomoleControlInFileSimpleMatcher():
