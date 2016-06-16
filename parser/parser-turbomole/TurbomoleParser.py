@@ -308,7 +308,6 @@ def build_TurbomoleMainFileSimpleMatcher():
                       #EigenvaluesGroupSubMatcher    
                       ]), # END ScfInitialization 
                   SM (name = 'EigenvaluesGroupSubMatcher',                      
-                      #startReStr = r"\s*orbitals \$(?: uhfmo\_alpha|uhfmo\_beta) (?: will be written to file) (?: alpha|beta) ",
                       startReStr = r"\s+orbitals [a-zA-Z\$\_]+ (?: will be written to file) [a-zA-Z]+",
                       #sections = ['section_scf_iteration'],                     
                       subMatchers = [                                           
@@ -364,7 +363,6 @@ def main():
                  parserInfo = parserInfo,
                  cachingLevelForMetaName = cachingLevelForMetaName,
                  superContext = TurbomoleParserContext())
-
 if __name__ == "__main__":
     main()
 
