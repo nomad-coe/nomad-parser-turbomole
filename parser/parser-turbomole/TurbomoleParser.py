@@ -1,3 +1,4 @@
+from builtins import object
 import setup_paths
 import numpy as np
 import nomadcore.ActivateLogging
