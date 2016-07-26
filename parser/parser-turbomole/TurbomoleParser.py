@@ -25,6 +25,7 @@ class TurbomoleParserContext(object):
         This allows a consistent setting and resetting of the variables,
         when the parsing starts and when a section_run closes.
         """
+        self.lastCalculationGIndex = None
 
     def startedParsing(self, fInName, parser):
         """Function is called when the parsing starts.
@@ -68,7 +69,14 @@ class TurbomoleParserContext(object):
         if atom_labels is not None:
            backend.addArrayValues('atom_labels', np.asarray(atom_labels))
 
-                
+    def setStartingPointCalculation(self, parser):
+        backend = parser.backend
+        backend.openSection('section_calculation_to_calculation_refs')
+        if self.lastCalculationGIndex:
+            backend.addValue('calculation_to_calculation_ref', self.lastCalculationGIndex)
+        backend.addValue('calculation_to_calculation_kind', 'pertubative GW')
+#        backend.closeSection('section_calculation_to_calculation_refs')
+        return None                
 
 #############################################################
 #################[2] MAIN PARSER STARTS HERE  ###############
@@ -85,11 +93,11 @@ def build_TurbomoleMainFileSimpleMatcher():
     Returns:
        SimpleMatcher that parses main file of Turbomole. 
     """
-
     ########################################                                    
     # submatcher for aims output from the parsed control.in                     
     controlInOutSubMatcher = SM (name = 'ControlInOut',                         
-        startReStr = r"\s*\|\s*basis set information\s*\|\s",                          
+        startReStr = r"\s*\|\s*basis set information\s",                      
+
         subMatchers = [                                                         
         SM (name = 'ControlInOutLines',                                         
             startReStr = r"\s*we will work with the",                                         
@@ -151,7 +159,9 @@ def build_TurbomoleMainFileSimpleMatcher():
             SimpleMatcher that parses eigenvalues with metadata according to addStr. 
         """                                                                     
         # submatcher for eigenvalue list                                        
-        EigenvaluesListSubMatcher =  SM (name = 'EigenvaluesLists',             
+        EigenvaluesListSubMatcher =  SM (name = 'EigenvaluesLists',            
+	    repeats =True, 
+#	    startReStr = r"\s*orbitals $uhfmo_alpha  will be written to file alpha\s*",
             startReStr = r"\s*(?: alpha|beta)\:\s*",
             sections = ['turbomole_section_eigenvalues_list%s' % addStr],        
             subMatchers = [                                                     
@@ -161,7 +171,8 @@ def build_TurbomoleMainFileSimpleMatcher():
 #                 SM (r"\s*(?: occupation)\s*(?P<turbomole_eigenvalue_occupation%s>[0-9.\s]+)" % (1 * (addStr,)), repeats = True)
             ]) 
         return SM (name = 'EigenvaluesGroup',                                   
-            startReStr = "\s*(?: alpha|beta)\:\s*",                 
+	    startReStr = "\s*orbitals\s*\$",
+            #startReStr = "\s*(?: alpha|beta)\:\s*",
             sections = ['turbomole_section_eigenvalues_group%s' % addStr],       
             subMatchers = [                                                     
             SM (name = 'EigenvaluesNoSpin',                          
@@ -179,11 +190,11 @@ def build_TurbomoleMainFileSimpleMatcher():
     # the verbatim writeout of the geometry.in is not considered for getting the structure data
     # using the geometry output of aims has the advantage that it has a clearer structure
     geometrySubMatcher = SM (name = 'Geometry',                                 
-        startReStr = r"\s*\|\s*Atomic coordinate\, charge and isotop information\s\|\s",
+	startReStr = r"\s*\|\s*Atomic coordinate",
         sections = ['section_system'],                              
         subMatchers = [                                                         
         SM (r"\s*-{20}-*", weak = True),                                        
-        SM (startReStr = r"\s*atomic coordinates\s*atom    charge  isotop\s",   
+	SM (startReStr = r"\s*atomic coordinates",
             subMatchers = [                                                     
             SM (r"\s*(?P<turbomole_geometry_atom_positions_x__angstrom>[-+0-9.]+)\s+"
                  "(?P<turbomole_geometry_atom_positions_y__angstrom>[-+0-9.]+)\s+"
@@ -250,6 +261,67 @@ def build_TurbomoleMainFileSimpleMatcher():
             ]) 
                                                                                 
         ])  
+    ########################################
+    # submatcher for pertubative GW eigenvalues
+    # first define function to build subMatcher
+    def build_GWeigenvaluesGroupSubMatcher(addStr):
+       """Builds the SimpleMatcher to parse the perturbative GW eigenvalues in turbomole.
+
+       Args:
+           addStr: String that is appended to the metadata names.
+
+       Returns:
+           SimpleMatcher that parses eigenvalues with metadata according to addStr.
+       """
+       # submatcher for eigenvalue list
+       GWEigenvaluesListSubMatcher = SM (name = 'perturbativeGW_EigenvaluesLists',
+#	   startReStr = r"\s*in\s*eV",
+	   startReStr = r"\s*orb\s+eps\s+QP-eps\s+Sigma\s+Sigma_x\s+Sigma_c\s+Vxc\s+Z\s+dS\/de",
+           sections = ['turbomole_section_eigenvalues_list%s' % addStr],
+           subMatchers = [
+	   SM (r"\s*in\s*eV"),
+	   SM (r"\s*------------------------------------------------------------------------------------"),
+	   #SM (startReStr = r"\s*[0-9]+\s+(?P<turbomole_eigenvalue_ks_GroundState__eV>[-+0-9.eEdD]+)\s+"
+	   SM (r"\s*(?P<eigenstate_number>[0-9]+)\s+(?P<turbomole_eigenvalue_ks_GroundState__eV>[-+0-9.eEdD]+)\s+"
+			     "(?P<turbomole_eigenvalue_quasiParticle_energy__eV>[-+0-9.eEdD]+)\s+"
+			     "(?P<turbomole_eigenvalue_ExchangeCorrelation_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
+			     "(?P<turbomole_eigenvalue_ExactExchange_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
+			     "(?P<turbomole_eigenvalue_correlation_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
+			     "(?P<turbomole_eigenvalue_ks_ExchangeCorrelation__eV>[-+0-9.eEdD]+)\s+"
+			     "(?P<turbomole_Z_factor>[-+0-9.eEdD]+)\s+"
+			     "(?P<turbomole_ExchangeCorrelation_perturbativeGW_derivation>[-+0-9.eEdD]+)", # % (1 * (addStr,)),
+           adHoc = lambda parser: parser.superContext.setStartingPointCalculation(parser),
+           repeats = True),
+	   SM (r"\s*------------------------------------------------------------------------------------"),
+           SM (r"\s*(?P<eigenstate_number>[0-9]+)\s+(?P<turbomole_eigenvalue_ks_GroundState__eV>[-+0-9.eEdD]+)\s+"
+                             "(?P<turbomole_eigenvalue_quasiParticle_energy__eV>[-+0-9.eEdD]+)\s+"
+                             "(?P<turbomole_eigenvalue_ExchangeCorrelation_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
+                             "(?P<turbomole_eigenvalue_ExactExchange_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
+                             "(?P<turbomole_eigenvalue_correlation_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
+                             "(?P<turbomole_eigenvalue_ks_ExchangeCorrelation__eV>[-+0-9.eEdD]+)\s+"
+                             "(?P<turbomole_Z_factor>[-+0-9.eEdD]+)\s+"
+                             "(?P<turbomole_ExchangeCorrelation_perturbativeGW_derivation>[-+0-9.eEdD]+)", 
+	   adHoc = lambda parser: parser.superContext.setStartingPointCalculation(parser),
+	   repeats = True)
+           ])
+       return SM (name = 'perturbativeGW_EigenvaluesGroup',
+           startReStr = r"\s*GW\s*version:",
+           sections = ['turbomole_section_eigenvalues_group%s' % addStr],
+           subMatchers = [
+           # non-spin-polarized
+           SM (name = 'GW_EigenvaluesNoSpinNonPeriodic',
+               startReStr = r"\s*orb\s+eps\s+QP-eps\s+Sigma\s+Sigma_x\s+Sigma_c\s+Vxc\s+Z\s+dS\/de",
+               sections = ['turbomole_section_eigenvalues_spin%s' % addStr],
+               forwardMatch = True,
+               subMatchers = [
+#               SM (r"\s*-+"),
+#               SM (r"\s*-+"),
+               GWEigenvaluesListSubMatcher.copy()
+               ]), # END EigenvaluesNoSpinNonPeriodic
+           ])
+    # now construct the two subMatchers
+    GWEigenvaluesGroupSubMatcher = build_GWeigenvaluesGroupSubMatcher('_perturbativeGW')
+
     ########################################                                    
     # return main Parser                                                        
     ########################################                                    
@@ -261,25 +333,27 @@ def build_TurbomoleMainFileSimpleMatcher():
         sections = ['section_run'],                                                            
         subMatchers = [                                                         
             SM (name = 'ProgramHeader',                                         
-                startReStr = r"\s*RUNNING PROGRAM",                    
+#                startReStr = r"\s*RUNNING PROGRAM",                    
+                startReStr = r"",
                 subMatchers = [                                                 
+#		SM (r"\s*TURBOMOLE V(?P<turbomole_program_version>[0-9.]+)")
                 SM (r"\s*dscf \((?P<turbomole_nodename>[a-zA-Z0-9]+)\) \: TURBOMOLE V(?P<turbomole_program_version>[0-9.]+)")       
                 ]), # END ProgramHeader
         #=============================================================================
         #  read OUPUT file *.r, the method part comes from INPUT file *.i,  so we 
         #  do not need to parser INPUT file, the OUTPUT file contains all information
         #=============================================================================
-        SM (name = 'NewRun',                                                    
-            startReStr = r"\s*SCF run will be profiled \!",                        
-            endReStr = r"\s*\*\*\*\*  dscf \: all done  \*\*\*\*",                                 
+        SM (name = 'NewRun',  
+            startReStr = r"\s*Copyright \(C\) ",
+	    endReStr = r"\s*\*\*\*\*\s",
             repeats = True,                                                     
             required = True,                                                    
             forwardMatch = True,                                                
-            fixedStartValues={'program_name': 'Turbomole', 'program_basis_set_type': 'numeric AOs' },
+            fixedStartValues={'program_name': 'Turbomole', 'program_basis_set_type': 'GTOs' },
             subMatchers = [                                                     
 	    #controlInOutSubMatcher,
             SM (name = 'SectionMethod',                                         
-                startReStr = r"\s*SCF run will be profiled \!",
+                startReStr = r"\s*Copyright \(C\) ",
                 sections = ['section_method'],                                  
                 subMatchers = [                                                 
                 # parse geometry writeout of aims                               
@@ -290,7 +364,8 @@ def build_TurbomoleMainFileSimpleMatcher():
               # the actual section for a single configuration calculation starts here
             SM (name = 'SingleConfigurationCalculation',                    
                   #startReStr = r"\s*start vectors will be provided from a core hamilton",
-                  startReStr = r"\s*\-ecp\-  integrals",
+		  startReStr = r"\s*1e\-*integrals",
+		  #startReStr = r"\s*\|",
                   repeats = True,                                             
                   subMatchers = [
                   SM (name = 'PeriodicEmbeddingSettings',                      
@@ -309,12 +384,14 @@ def build_TurbomoleMainFileSimpleMatcher():
                       #EigenvaluesGroupSubMatcher    
                       ]), # END ScfInitialization 
                   SM (name = 'EigenvaluesGroupSubMatcher',                      
-                      startReStr = r"\s+orbitals [a-zA-Z\$\_]+ (?: will be written to file) [a-zA-Z]+",
+                      #startReStr = r"\s+orbitals [a-zA-Z\$\_]+ (?: will be written to file) [a-zA-Z]+",
+		      startReStr = r"\s*orbitals\s*\$",
                       #sections = ['section_scf_iteration'],                     
                       subMatchers = [                                           
                       EigenvaluesGroupSubMatcher                               
-                      ]) 
-                   ])#, # END SingleConfigurationCalculation
+                      ])
+                  ]), # END SingleConfigurationCalculation
+	    GWEigenvaluesGroupSubMatcher
            ]) # CLOSING SM NewRun                                               
         ]) # END Root  
 
