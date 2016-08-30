@@ -1,3 +1,5 @@
+
+
 from builtins import object
 import setup_paths
 import numpy as np
@@ -207,6 +209,7 @@ def build_TurbomoleMainFileSimpleMatcher():
     # submatcher for total energy components during SCF interation              
     TotalEnergyScfSubMatcher = SM (name = 'TotalEnergyScf',                    
         repeats =True, 
+	#startReStr = r"\s*scf convergence criterion",
         startReStr = r"\s*current damping\s*:\s*",                          
         forwardMatch = True,
         subMatchers = [                                                         
@@ -231,6 +234,28 @@ def build_TurbomoleMainFileSimpleMatcher():
         SM (r"\s*\:\s*wavefunction norm\s*\=\s*(?P<turbomole_wave_func_norm__eV>[-+0-9.eEdD]+)")
         
         ]) 
+    ########################################
+    # submatcher for coupled-cluster and MP2 energy
+    CCEnergySubMatcher = SM (name = 'TotalEnergyCC',
+        startReStr = r"\s*Calculate\s*integrals\s*\(*ia\|*jb\)*\s*for MP2 start guess",
+        forwardMatch = True,
+        subMatchers = [
+        SM (r"\s*\*\s*RHF  energy\s*\:\s*(?P<turbomole_HF_total_energy_final__eV>[-+0-9.eEdD]+)"),
+        SM (r"\s*\*\s*Final MP2 energy\s*\:\s*(?P<turbomole_MP2_total_energy_final__eV>[-+0-9.eEdD]+)"),
+        SM (r"\s*\*\s*Final CCSD energy\s*\:\s*(?P<turbomole_CCSD_total_energy_final__eV>[-+0-9.eEdD]+)"),
+        SM (r"\s*\*\s*Final CCSD\(T\) energy\s*\:\s*(?P<turbomole_CCSDparT_total_energy_final__eV>[-+0-9.eEdD]+)"),
+        SM (r"\s*\*\s*D1 diagnostic \(CCSD\)\s*\:\s*(?P<turbomole_D1_diagnostic>[-+0-9.eEdD]+)")
+        
+        ])
+    ########################################
+    # submatcher for perturbation theory total energy
+    PTEnergySubMatcher = SM (name = 'TotalEnergyPT',
+	startReStr = r"\s*\|*\s*| natural orb",
+	forwardMatch = True,
+	subMatchers = [
+	SM (r"\s*Total Energy\s*\:\s*(?P<turbomole_PT_total_energy_final__eV>[-+0-9.eEdD]+)")
+
+	])
     ########################################                                    
     # submatcher for final total energy components                              
     EmbeddingSubMatcher = SM (name = 'PeriodicEmbedding',                      
@@ -364,7 +389,7 @@ def build_TurbomoleMainFileSimpleMatcher():
               # the actual section for a single configuration calculation starts here
             SM (name = 'SingleConfigurationCalculation',                    
                   #startReStr = r"\s*start vectors will be provided from a core hamilton",
-		  startReStr = r"\s*1e\-*integrals",
+		  startReStr = r"\s*1e\-*integrals will be neglected if expon",
 		  #startReStr = r"\s*\|",
                   repeats = True,                                             
                   subMatchers = [
@@ -375,14 +400,21 @@ def build_TurbomoleMainFileSimpleMatcher():
                       EmbeddingSubMatcher                                     
                       ]),
                   SM (name = 'TotalEnergyForEachScfCycle',                            
-                      startReStr = r"\s*STARTING INTEGRAL EVALUATION FOR 1st SCF ITERATION",
+		      startReStr = r"\s*scf convergence criterion",
+                      #startReStr = r"\s*STARTING INTEGRAL EVALUATION FOR 1st SCF ITERATION",
                       sections = ['section_scf_iteration'],                   
                       subMatchers = [                                         
-                      #EigenvaluesGroupSubMatcher,    
+                      #EigenvaluesGroupSubMatcher,  
                       TotalEnergyScfSubMatcher,
-                      TotalEnergySubMatcher#,                                          
+                      TotalEnergySubMatcher#,
                       #EigenvaluesGroupSubMatcher    
                       ]), # END ScfInitialization 
+		  SM (name = 'PostHFTotalEnergies',
+                      startReStr = r"\s*Energy of reference wave function is",
+                      sections = ['section_scf_iteration'],
+                      subMatchers = [
+		      CCEnergySubMatcher
+		      ]),
                   SM (name = 'EigenvaluesGroupSubMatcher',                      
                       #startReStr = r"\s+orbitals [a-zA-Z\$\_]+ (?: will be written to file) [a-zA-Z]+",
 		      startReStr = r"\s*orbitals\s*\$",
@@ -391,6 +423,12 @@ def build_TurbomoleMainFileSimpleMatcher():
                       EigenvaluesGroupSubMatcher                               
                       ])
                   ]), # END SingleConfigurationCalculation
+	    SM (name = 'PTTotalEnergies',
+		startReStr = r"\s*\|\s*MP2 relaxed",
+		sections = ['section_scf_iteration'],
+		subMatchers = [
+		PTEnergySubMatcher
+		]),
 	    GWEigenvaluesGroupSubMatcher
            ]) # CLOSING SM NewRun                                               
         ]) # END Root  
