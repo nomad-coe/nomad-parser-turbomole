@@ -347,7 +347,10 @@ def build_TurbomoleMainFileSimpleMatcher():
     # now construct the two subMatchers
     GWEigenvaluesGroupSubMatcher = build_GWeigenvaluesGroupSubMatcher('_perturbativeGW')
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> b6bb1d2138e93850cc80bc3d95e6d25c208e3b56
     ########################################                                    
     # return main Parser                                                        
     ########################################                                    
@@ -359,6 +362,7 @@ def build_TurbomoleMainFileSimpleMatcher():
         sections = ['section_run'],                                                            
         subMatchers = [                                                         
             SM (name = 'ProgramHeader',                                         
+<<<<<<< HEAD
 		startReStr = r"",
                 subMatchers = [                                                 
 		SM (r"\s*proper\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
@@ -405,6 +409,13 @@ def build_TurbomoleMainFileSimpleMatcher():
                 SM (r"\s*haga\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
                 SM (r"\s*intense\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
                 SM (r"\s*mpgrad\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)")
+=======
+#                startReStr = r"\s*RUNNING PROGRAM",                    
+                startReStr = r"",
+                subMatchers = [                                                 
+#		SM (r"\s*TURBOMOLE V(?P<turbomole_program_version>[0-9.]+)")
+                SM (r"\s*dscf \((?P<turbomole_nodename>[a-zA-Z0-9]+)\) \: TURBOMOLE V(?P<turbomole_program_version>[0-9.]+)")       
+>>>>>>> b6bb1d2138e93850cc80bc3d95e6d25c208e3b56
                 ]), # END ProgramHeader
         #=============================================================================
         #  read OUPUT file *.r, the method part comes from INPUT file *.i,  so we 
