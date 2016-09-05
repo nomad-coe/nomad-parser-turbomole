@@ -1,3 +1,5 @@
+
+
 from builtins import object
 import setup_paths
 import numpy as np
@@ -25,6 +27,7 @@ class TurbomoleParserContext(object):
         This allows a consistent setting and resetting of the variables,
         when the parsing starts and when a section_run closes.
         """
+        self.lastCalculationGIndex = None
 
     def startedParsing(self, fInName, parser):
         """Function is called when the parsing starts.
@@ -68,7 +71,14 @@ class TurbomoleParserContext(object):
         if atom_labels is not None:
            backend.addArrayValues('atom_labels', np.asarray(atom_labels))
 
-                
+    def setStartingPointCalculation(self, parser):
+        backend = parser.backend
+        backend.openSection('section_calculation_to_calculation_refs')
+        if self.lastCalculationGIndex:
+            backend.addValue('calculation_to_calculation_ref', self.lastCalculationGIndex)
+        backend.addValue('calculation_to_calculation_kind', 'pertubative GW')
+#        backend.closeSection('section_calculation_to_calculation_refs')
+        return None                
 
 #############################################################
 #################[2] MAIN PARSER STARTS HERE  ###############
@@ -85,11 +95,11 @@ def build_TurbomoleMainFileSimpleMatcher():
     Returns:
        SimpleMatcher that parses main file of Turbomole. 
     """
-
     ########################################                                    
     # submatcher for aims output from the parsed control.in                     
     controlInOutSubMatcher = SM (name = 'ControlInOut',                         
-        startReStr = r"\s*\|\s*basis set information\s*\|\s",                          
+        startReStr = r"\s*\|\s*basis set information\s",                      
+
         subMatchers = [                                                         
         SM (name = 'ControlInOutLines',                                         
             startReStr = r"\s*we will work with the",                                         
@@ -151,7 +161,9 @@ def build_TurbomoleMainFileSimpleMatcher():
             SimpleMatcher that parses eigenvalues with metadata according to addStr. 
         """                                                                     
         # submatcher for eigenvalue list                                        
-        EigenvaluesListSubMatcher =  SM (name = 'EigenvaluesLists',             
+        EigenvaluesListSubMatcher =  SM (name = 'EigenvaluesLists',            
+	    repeats =True, 
+#	    startReStr = r"\s*orbitals $uhfmo_alpha  will be written to file alpha\s*",
             startReStr = r"\s*(?: alpha|beta)\:\s*",
             sections = ['turbomole_section_eigenvalues_list%s' % addStr],        
             subMatchers = [                                                     
@@ -161,7 +173,8 @@ def build_TurbomoleMainFileSimpleMatcher():
 #                 SM (r"\s*(?: occupation)\s*(?P<turbomole_eigenvalue_occupation%s>[0-9.\s]+)" % (1 * (addStr,)), repeats = True)
             ]) 
         return SM (name = 'EigenvaluesGroup',                                   
-            startReStr = "\s*(?: alpha|beta)\:\s*",                 
+	    startReStr = "\s*orbitals\s*\$",
+            #startReStr = "\s*(?: alpha|beta)\:\s*",
             sections = ['turbomole_section_eigenvalues_group%s' % addStr],       
             subMatchers = [                                                     
             SM (name = 'EigenvaluesNoSpin',                          
@@ -179,11 +192,11 @@ def build_TurbomoleMainFileSimpleMatcher():
     # the verbatim writeout of the geometry.in is not considered for getting the structure data
     # using the geometry output of aims has the advantage that it has a clearer structure
     geometrySubMatcher = SM (name = 'Geometry',                                 
-        startReStr = r"\s*\|\s*Atomic coordinate\, charge and isotop information\s\|\s",
+	startReStr = r"\s*\|\s*Atomic coordinate",
         sections = ['section_system'],                              
         subMatchers = [                                                         
         SM (r"\s*-{20}-*", weak = True),                                        
-        SM (startReStr = r"\s*atomic coordinates\s*atom    charge  isotop\s",   
+	SM (startReStr = r"\s*atomic coordinates",
             subMatchers = [                                                     
             SM (r"\s*(?P<turbomole_geometry_atom_positions_x__angstrom>[-+0-9.]+)\s+"
                  "(?P<turbomole_geometry_atom_positions_y__angstrom>[-+0-9.]+)\s+"
@@ -196,6 +209,7 @@ def build_TurbomoleMainFileSimpleMatcher():
     # submatcher for total energy components during SCF interation              
     TotalEnergyScfSubMatcher = SM (name = 'TotalEnergyScf',                    
         repeats =True, 
+	#startReStr = r"\s*scf convergence criterion",
         startReStr = r"\s*current damping\s*:\s*",                          
         forwardMatch = True,
         subMatchers = [                                                         
@@ -220,6 +234,28 @@ def build_TurbomoleMainFileSimpleMatcher():
         SM (r"\s*\:\s*wavefunction norm\s*\=\s*(?P<turbomole_wave_func_norm__eV>[-+0-9.eEdD]+)")
         
         ]) 
+    ########################################
+    # submatcher for coupled-cluster and MP2 energy
+    CCEnergySubMatcher = SM (name = 'TotalEnergyCC',
+        startReStr = r"\s*Calculate\s*integrals\s*\(*ia\|*jb\)*\s*for MP2 start guess",
+        forwardMatch = True,
+        subMatchers = [
+        SM (r"\s*\*\s*RHF  energy\s*\:\s*(?P<turbomole_HF_total_energy_final__eV>[-+0-9.eEdD]+)"),
+        SM (r"\s*\*\s*Final MP2 energy\s*\:\s*(?P<turbomole_MP2_total_energy_final__eV>[-+0-9.eEdD]+)"),
+        SM (r"\s*\*\s*Final CCSD energy\s*\:\s*(?P<turbomole_CCSD_total_energy_final__eV>[-+0-9.eEdD]+)"),
+        SM (r"\s*\*\s*Final CCSD\(T\) energy\s*\:\s*(?P<turbomole_CCSDparT_total_energy_final__eV>[-+0-9.eEdD]+)"),
+        SM (r"\s*\*\s*D1 diagnostic \(CCSD\)\s*\:\s*(?P<turbomole_D1_diagnostic>[-+0-9.eEdD]+)")
+        
+        ])
+    ########################################
+    # submatcher for perturbation theory total energy
+    PTEnergySubMatcher = SM (name = 'TotalEnergyPT',
+	startReStr = r"\s*\|*\s*| natural orb",
+	forwardMatch = True,
+	subMatchers = [
+	SM (r"\s*Total Energy\s*\:\s*(?P<turbomole_PT_total_energy_final__eV>[-+0-9.eEdD]+)")
+
+	])
     ########################################                                    
     # submatcher for final total energy components                              
     EmbeddingSubMatcher = SM (name = 'PeriodicEmbedding',                      
@@ -250,6 +286,67 @@ def build_TurbomoleMainFileSimpleMatcher():
             ]) 
                                                                                 
         ])  
+    ########################################
+    # submatcher for pertubative GW eigenvalues
+    # first define function to build subMatcher
+    def build_GWeigenvaluesGroupSubMatcher(addStr):
+       """Builds the SimpleMatcher to parse the perturbative GW eigenvalues in turbomole.
+
+       Args:
+           addStr: String that is appended to the metadata names.
+
+       Returns:
+           SimpleMatcher that parses eigenvalues with metadata according to addStr.
+       """
+       # submatcher for eigenvalue list
+       GWEigenvaluesListSubMatcher = SM (name = 'perturbativeGW_EigenvaluesLists',
+#	   startReStr = r"\s*in\s*eV",
+	   startReStr = r"\s*orb\s+eps\s+QP-eps\s+Sigma\s+Sigma_x\s+Sigma_c\s+Vxc\s+Z\s+dS\/de",
+           sections = ['turbomole_section_eigenvalues_list%s' % addStr],
+           subMatchers = [
+	   SM (r"\s*in\s*eV"),
+	   SM (r"\s*------------------------------------------------------------------------------------"),
+	   #SM (startReStr = r"\s*[0-9]+\s+(?P<turbomole_eigenvalue_ks_GroundState__eV>[-+0-9.eEdD]+)\s+"
+	   SM (r"\s*(?P<eigenstate_number>[0-9]+)\s+(?P<turbomole_eigenvalue_ks_GroundState__eV>[-+0-9.eEdD]+)\s+"
+			     "(?P<turbomole_eigenvalue_quasiParticle_energy__eV>[-+0-9.eEdD]+)\s+"
+			     "(?P<turbomole_eigenvalue_ExchangeCorrelation_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
+			     "(?P<turbomole_eigenvalue_ExactExchange_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
+			     "(?P<turbomole_eigenvalue_correlation_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
+			     "(?P<turbomole_eigenvalue_ks_ExchangeCorrelation__eV>[-+0-9.eEdD]+)\s+"
+			     "(?P<turbomole_Z_factor>[-+0-9.eEdD]+)\s+"
+			     "(?P<turbomole_ExchangeCorrelation_perturbativeGW_derivation>[-+0-9.eEdD]+)", # % (1 * (addStr,)),
+           adHoc = lambda parser: parser.superContext.setStartingPointCalculation(parser),
+           repeats = True),
+	   SM (r"\s*------------------------------------------------------------------------------------"),
+           SM (r"\s*(?P<eigenstate_number>[0-9]+)\s+(?P<turbomole_eigenvalue_ks_GroundState__eV>[-+0-9.eEdD]+)\s+"
+                             "(?P<turbomole_eigenvalue_quasiParticle_energy__eV>[-+0-9.eEdD]+)\s+"
+                             "(?P<turbomole_eigenvalue_ExchangeCorrelation_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
+                             "(?P<turbomole_eigenvalue_ExactExchange_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
+                             "(?P<turbomole_eigenvalue_correlation_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
+                             "(?P<turbomole_eigenvalue_ks_ExchangeCorrelation__eV>[-+0-9.eEdD]+)\s+"
+                             "(?P<turbomole_Z_factor>[-+0-9.eEdD]+)\s+"
+                             "(?P<turbomole_ExchangeCorrelation_perturbativeGW_derivation>[-+0-9.eEdD]+)", 
+	   adHoc = lambda parser: parser.superContext.setStartingPointCalculation(parser),
+	   repeats = True)
+           ])
+       return SM (name = 'perturbativeGW_EigenvaluesGroup',
+           startReStr = r"\s*GW\s*version:",
+           sections = ['turbomole_section_eigenvalues_group%s' % addStr],
+           subMatchers = [
+           # non-spin-polarized
+           SM (name = 'GW_EigenvaluesNoSpinNonPeriodic',
+               startReStr = r"\s*orb\s+eps\s+QP-eps\s+Sigma\s+Sigma_x\s+Sigma_c\s+Vxc\s+Z\s+dS\/de",
+               sections = ['turbomole_section_eigenvalues_spin%s' % addStr],
+               forwardMatch = True,
+               subMatchers = [
+#               SM (r"\s*-+"),
+#               SM (r"\s*-+"),
+               GWEigenvaluesListSubMatcher.copy()
+               ]), # END EigenvaluesNoSpinNonPeriodic
+           ])
+    # now construct the two subMatchers
+    GWEigenvaluesGroupSubMatcher = build_GWeigenvaluesGroupSubMatcher('_perturbativeGW')
+
     ########################################                                    
     # return main Parser                                                        
     ########################################                                    
@@ -261,25 +358,68 @@ def build_TurbomoleMainFileSimpleMatcher():
         sections = ['section_run'],                                                            
         subMatchers = [                                                         
             SM (name = 'ProgramHeader',                                         
-                startReStr = r"\s*RUNNING PROGRAM",                    
+		startReStr = r"",
                 subMatchers = [                                                 
-                SM (r"\s*dscf \((?P<turbomole_nodename>[a-zA-Z0-9]+)\) \: TURBOMOLE V(?P<turbomole_program_version>[0-9.]+)")       
+		SM (r"\s*proper\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+		SM (r"\s*ricc2\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+		SM (r"\s*rimp2\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+		SM (r"\s*ruecker\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+		SM (r"\s*statpt\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+		SM (r"\s*tm2molden\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+		SM (r"\s*woelfling\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+		SM (r"\s*bsseenergy\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+		SM (r"\s*freeh\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+		SM (r"\s*gradruecker\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+		SM (r"\s*hessruecker\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+		SM (r"\s*mdprep\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+		SM (r"\s*mpshift\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+		SM (r"\s*rdgrad\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+		SM (r"\s*ricctools\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+		SM (r"\s*rimp2prep\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+		SM (r"\s*sammler\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+		SM (r"\s*thirdruecker\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+		SM (r"\s*uff\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+		SM (r"\s*escf\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+		SM (r"\s*dscf\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+		SM (r"\s*aoforce\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+                SM (r"\s*cosmoprep\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+                SM (r"\s*egrad\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+                SM (r"\s*evib\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+                SM (r"\s*frog\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+                SM (r"\s*gradsammel\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+                SM (r"\s*hesssammel\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+                SM (r"\s*moloch\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+                SM (r"\s*odft\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+                SM (r"\s*relax\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+                SM (r"\s*ridft\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+                SM (r"\s*rirpa\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+                SM (r"\s*sdg\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+                SM (r"\s*thirdsammel\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+                SM (r"\s*vibration\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+                SM (r"\s*atbandbta\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+                SM (r"\s*define\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+                SM (r"\s*eigerf\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+                SM (r"\s*fdetools\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+                SM (r"\s*grad\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+                SM (r"\s*haga\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+                SM (r"\s*intense\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
+                SM (r"\s*mpgrad\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)")
                 ]), # END ProgramHeader
         #=============================================================================
         #  read OUPUT file *.r, the method part comes from INPUT file *.i,  so we 
         #  do not need to parser INPUT file, the OUTPUT file contains all information
         #=============================================================================
-        SM (name = 'NewRun',                                                    
-            startReStr = r"\s*SCF run will be profiled \!",                        
-            endReStr = r"\s*\*\*\*\*  dscf \: all done  \*\*\*\*",                                 
+        SM (name = 'NewRun',  
+            startReStr = r"\s*Copyright \(C\) ",
+	    endReStr = r"\s*\*\*\*\*\s",
             repeats = True,                                                     
             required = True,                                                    
             forwardMatch = True,                                                
-            fixedStartValues={'program_name': 'Turbomole', 'program_basis_set_type': 'numeric AOs' },
+            fixedStartValues={'program_name': 'Turbomole', 'program_basis_set_type': 'GTOs' },
             subMatchers = [                                                     
 	    #controlInOutSubMatcher,
             SM (name = 'SectionMethod',                                         
-                startReStr = r"\s*SCF run will be profiled \!",
+                startReStr = r"\s*Copyright \(C\) ",
                 sections = ['section_method'],                                  
                 subMatchers = [                                                 
                 # parse geometry writeout of aims                               
@@ -290,7 +430,8 @@ def build_TurbomoleMainFileSimpleMatcher():
               # the actual section for a single configuration calculation starts here
             SM (name = 'SingleConfigurationCalculation',                    
                   #startReStr = r"\s*start vectors will be provided from a core hamilton",
-                  startReStr = r"\s*\-ecp\-  integrals",
+		  startReStr = r"\s*1e\-*integrals will be neglected if expon",
+		  #startReStr = r"\s*\|",
                   repeats = True,                                             
                   subMatchers = [
                   SM (name = 'PeriodicEmbeddingSettings',                      
@@ -300,21 +441,36 @@ def build_TurbomoleMainFileSimpleMatcher():
                       EmbeddingSubMatcher                                     
                       ]),
                   SM (name = 'TotalEnergyForEachScfCycle',                            
-                      startReStr = r"\s*STARTING INTEGRAL EVALUATION FOR 1st SCF ITERATION",
+		      startReStr = r"\s*scf convergence criterion",
+                      #startReStr = r"\s*STARTING INTEGRAL EVALUATION FOR 1st SCF ITERATION",
                       sections = ['section_scf_iteration'],                   
                       subMatchers = [                                         
-                      #EigenvaluesGroupSubMatcher,    
+                      #EigenvaluesGroupSubMatcher,  
                       TotalEnergyScfSubMatcher,
-                      TotalEnergySubMatcher#,                                          
+                      TotalEnergySubMatcher#,
                       #EigenvaluesGroupSubMatcher    
                       ]), # END ScfInitialization 
+		  SM (name = 'PostHFTotalEnergies',
+                      startReStr = r"\s*Energy of reference wave function is",
+                      sections = ['section_scf_iteration'],
+                      subMatchers = [
+		      CCEnergySubMatcher
+		      ]),
                   SM (name = 'EigenvaluesGroupSubMatcher',                      
-                      startReStr = r"\s+orbitals [a-zA-Z\$\_]+ (?: will be written to file) [a-zA-Z]+",
+                      #startReStr = r"\s+orbitals [a-zA-Z\$\_]+ (?: will be written to file) [a-zA-Z]+",
+		      startReStr = r"\s*orbitals\s*\$",
                       #sections = ['section_scf_iteration'],                     
                       subMatchers = [                                           
                       EigenvaluesGroupSubMatcher                               
-                      ]) 
-                   ])#, # END SingleConfigurationCalculation
+                      ])
+                  ]), # END SingleConfigurationCalculation
+	    SM (name = 'PTTotalEnergies',
+		startReStr = r"\s*\|\s*MP2 relaxed",
+		sections = ['section_scf_iteration'],
+		subMatchers = [
+		PTEnergySubMatcher
+		]),
+	    GWEigenvaluesGroupSubMatcher
            ]) # CLOSING SM NewRun                                               
         ]) # END Root  
 
