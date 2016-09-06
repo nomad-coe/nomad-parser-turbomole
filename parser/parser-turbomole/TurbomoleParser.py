@@ -168,6 +168,7 @@ def build_TurbomoleMainFileSimpleMatcher():
             sections = ['turbomole_section_eigenvalues_list%s' % addStr],        
             subMatchers = [                                                     
         	 SM (r"\s*(?: irrep)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % (1 * (addStr,)), repeats = True),
+		 #SM (r"\s*(?: irrep)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % (addStr, addStr, addStr, addStr, addStr), repeats = True),
                  SM (r"\s*(?: eigenvalues H)\s*[-+0-9.eEdD\s]+", repeats = True),
                  SM (r"\s*(?: eV)\s*(?P<turbomole_eigenvalue_eigenvalue%s>[-+0-9.eEdD]+)" % (1 * (addStr,)), repeats = True)#,
 #                 SM (r"\s*(?: occupation)\s*(?P<turbomole_eigenvalue_occupation%s>[0-9.\s]+)" % (1 * (addStr,)), repeats = True)
@@ -347,10 +348,6 @@ def build_TurbomoleMainFileSimpleMatcher():
     # now construct the two subMatchers
     GWEigenvaluesGroupSubMatcher = build_GWeigenvaluesGroupSubMatcher('_perturbativeGW')
 
-<<<<<<< HEAD
-
-=======
->>>>>>> b6bb1d2138e93850cc80bc3d95e6d25c208e3b56
     ########################################                                    
     # return main Parser                                                        
     ########################################                                    
@@ -362,7 +359,6 @@ def build_TurbomoleMainFileSimpleMatcher():
         sections = ['section_run'],                                                            
         subMatchers = [                                                         
             SM (name = 'ProgramHeader',                                         
-<<<<<<< HEAD
 		startReStr = r"",
                 subMatchers = [                                                 
 		SM (r"\s*proper\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
@@ -409,13 +405,11 @@ def build_TurbomoleMainFileSimpleMatcher():
                 SM (r"\s*haga\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
                 SM (r"\s*intense\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)"),
                 SM (r"\s*mpgrad\s*\((?P<turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<turbomole_program_version>[a-zA-Z0-9.]+)")
-=======
 #                startReStr = r"\s*RUNNING PROGRAM",                    
-                startReStr = r"",
-                subMatchers = [                                                 
+                #startReStr = r"",
+                #subMatchers = [                                                 
 #		SM (r"\s*TURBOMOLE V(?P<turbomole_program_version>[0-9.]+)")
-                SM (r"\s*dscf \((?P<turbomole_nodename>[a-zA-Z0-9]+)\) \: TURBOMOLE V(?P<turbomole_program_version>[0-9.]+)")       
->>>>>>> b6bb1d2138e93850cc80bc3d95e6d25c208e3b56
+                #SM (r"\s*dscf \((?P<turbomole_nodename>[a-zA-Z0-9]+)\) \: TURBOMOLE V(?P<turbomole_program_version>[0-9.]+)")       
                 ]), # END ProgramHeader
         #=============================================================================
         #  read OUPUT file *.r, the method part comes from INPUT file *.i,  so we 
