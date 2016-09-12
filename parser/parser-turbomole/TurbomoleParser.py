@@ -189,9 +189,9 @@ def build_TurbomoleMainFileSimpleMatcher():
             startReStr = r"\s*(?: alpha|beta)\:\s*",
             sections = ['turbomole_section_eigenvalues_list%s' % addStr],        
             subMatchers = [                                                     
-        	 SM (r"\s*(?: irrep)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % (1 * (addStr,)), repeats = True),
-		 #SM (r"\s*(?: irrep)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % addStr, r"\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % addStr, r"\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % addStr, r"\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % addStr, r"\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % addStr, repeats = True),
-                 SM (r"\s*(?: eigenvalues H)\s*[-+0-9.eEdD\s]+", repeats = True),
+		 SM (r"\s*(?: irrep)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % (1 * (addStr,)), repeats = True),
+		 #SM (r"\s*(?: irrep)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % (addStr, addStr, addStr, addStr, addStr), repeats = True), 	+	#SM (r"\s*(?: irrep)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % addStr, r"\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % addStr, r"\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % addStr, r"\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % addStr, r"\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % addStr, repeats = True),
+		 SM (r"\s*(?: eigenvalues H)\s*[-+0-9.eEdD\s]+", repeats = True),
                  SM (r"\s*(?: eV)\s*(?P<turbomole_eigenvalue_eigenvalue%s>[-+0-9.eEdD]+)" % (1 * (addStr,)), repeats = True)#,
 #                 SM (r"\s*(?: occupation)\s*(?P<turbomole_eigenvalue_occupation%s>[0-9.\s]+)" % (1 * (addStr,)), repeats = True)
             ]) 
