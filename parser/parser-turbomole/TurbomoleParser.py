@@ -69,6 +69,11 @@ class TurbomoleParserContext(object):
                 match = 'DFT'
                 backend.addValue('electronic_structure_method', match)
 
+	smear_type = section['smearing_kind']
+	if smear_type is None:
+		value = ''
+		backend.addValue('smearing_kind', value)
+
        #------1.atom_position
         atom_pos = []
         for i in ['x', 'y', 'z']:
@@ -147,6 +152,13 @@ def build_TurbomoleMainFileSimpleMatcher():
             subMatchers = [
                 SM (r"\s*(?P<electronic_structure_method>[a-zA-Z-a-zA-Z0-9\(\)]+)\s*\-")
             ]),
+#	SM (name = "smearing",
+#	    startReStr = r"\s*Fermi\s*smearing\s*switched\s*on",
+#	    sections = ["section_system"],
+#	    subMatchers = [
+#		SM (r"\s*(?P<smearing_kind>[a-zA-Z]+)\s*smearing switched on"),
+#		SM (r"\s*Final electron temperature\:\s*(?P<smearing_width>[0-9.eEdD]+)")
+#	    ]),
 	SM (name = 'XC functional',
 	    startReStr = r"\s*density functional",
 	    sections = ['turbomole_section_functionals'],
@@ -227,7 +239,15 @@ def build_TurbomoleMainFileSimpleMatcher():
                  "(?P<turbomole_geometry_atom_labels>[a-zA-Z]+)\s+(?P<turbomole_geometry_atom_charge>[0-9.]+)", repeats = True)
             ])                                                                  
         ])                                                                      
-
+    ########################################
+    # submatcher for atomic forces
+    ForcesMatcher = SM (name = 'AtomicForces',
+	repeats =True, 
+	startReStr = r"\s*ATOM\s*CARTESIAN GRADIENTS",
+	#forwardMatch = True,
+	subMatchers = [
+	    SM (r"\s*(?:[0-9]+)\s*(?:[a-z]+)\s*(?P<atom_forces_raw_x__hartree_bohr_1>[-+0-9.eEdD]+)\s*(?P<atom_forces_raw_y__hartree_bohr_1>[-+0-9.eEdD]+)\s*(?P<atom_forces_raw_z__hartree_bohr_1>[-+0-9.eEdD]+)", repeats = True)
+	])
     ########################################                                    
     # submatcher for total energy components during SCF interation              
     TotalEnergyScfSubMatcher = SM (name = 'TotalEnergyScf',                    
@@ -257,6 +277,13 @@ def build_TurbomoleMainFileSimpleMatcher():
         SM (r"\s*\:\s*wavefunction norm\s*\=\s*(?P<turbomole_wave_func_norm__eV>[-+0-9.eEdD]+)")
         
         ]) 
+    SmearingOccupation = SM (name = "smearing",
+	startReStr = r"\s*and increment of one",
+        sections = ["section_system"],
+        subMatchers = [
+            SM (r"\s*(?P<smearing_kind>[a-zA-Z]+)\s*smearing switched on"),
+            SM (r"\s*Final electron temperature\:\s*(?P<smearing_width>[0-9.eEdD]+)")
+        ])
     ########################################
     # submatcher for coupled-cluster and MP2 energy
     CCEnergySubMatcher = SM (name = 'TotalEnergyCC',
@@ -332,7 +359,6 @@ def build_TurbomoleMainFileSimpleMatcher():
            subMatchers = [
 	   SM (r"\s*in\s*eV"),
 	   SM (r"\s*------------------------------------------------------------------------------------"),
-	   #SM (startReStr = r"\s*[0-9]+\s+(?P<turbomole_eigenvalue_ks_GroundState__eV>[-+0-9.eEdD]+)\s+"
 	   SM (r"\s*(?P<eigenstate_number>[0-9]+)\s+(?P<turbomole_eigenvalue_ks_GroundState__eV>[-+0-9.eEdD]+)\s+"
 			     "(?P<turbomole_eigenvalue_quasiParticle_energy__eV>[-+0-9.eEdD]+)\s+"
 			     "(?P<turbomole_eigenvalue_ExchangeCorrelation_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
@@ -340,7 +366,7 @@ def build_TurbomoleMainFileSimpleMatcher():
 			     "(?P<turbomole_eigenvalue_correlation_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
 			     "(?P<turbomole_eigenvalue_ks_ExchangeCorrelation__eV>[-+0-9.eEdD]+)\s+"
 			     "(?P<turbomole_Z_factor>[-+0-9.eEdD]+)\s+"
-			     "(?P<turbomole_ExchangeCorrelation_perturbativeGW_derivation>[-+0-9.eEdD]+)", # % (1 * (addStr,)),
+			     "(?P<turbomole_ExchangeCorrelation_perturbativeGW_derivation>[-+0-9.eEdD]+)", 
            adHoc = lambda parser: parser.superContext.setStartingPointCalculation(parser),
            repeats = True),
 	   SM (r"\s*------------------------------------------------------------------------------------"),
@@ -407,8 +433,8 @@ def build_TurbomoleMainFileSimpleMatcher():
                 subMatchers = [                                                 
                 # parse geometry writeout of aims                               
 		geometrySubMatcher,
-                controlInOutSubMatcher                                              
-                ]),
+                controlInOutSubMatcher
+		]),
 
               # the actual section for a single configuration calculation starts here
             SM (name = 'SingleConfigurationCalculation',                    
@@ -430,8 +456,8 @@ def build_TurbomoleMainFileSimpleMatcher():
                       subMatchers = [                                         
                       #EigenvaluesGroupSubMatcher,  
                       TotalEnergyScfSubMatcher,
-                      TotalEnergySubMatcher#,
-                      #EigenvaluesGroupSubMatcher    
+                      TotalEnergySubMatcher,
+		      SmearingOccupation
                       ]), # END ScfInitialization 
                   SM (name = 'EigenvaluesGroupSubMatcher',                      
                       #startReStr = r"\s+orbitals [a-zA-Z\$\_]+ (?: will be written to file) [a-zA-Z]+",
@@ -441,6 +467,7 @@ def build_TurbomoleMainFileSimpleMatcher():
                       EigenvaluesGroupSubMatcher                               
                       ])
                   ]), # END SingleConfigurationCalculation
+	    ForcesMatcher,
             SM (name = 'PostHFTotalEnergies',
                 startReStr = r"\s*Energy of reference wave function is",
                 sections = ['section_scf_iteration'],
