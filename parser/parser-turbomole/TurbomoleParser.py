@@ -455,9 +455,10 @@ def build_TurbomoleMainFileSimpleMatcher():
                       sections = ['section_scf_iteration'],                   
                       subMatchers = [                                         
                       #EigenvaluesGroupSubMatcher,  
-                      TotalEnergyScfSubMatcher,
-                      TotalEnergySubMatcher,
-		      SmearingOccupation
+                      SmearingOccupation,
+		      TotalEnergyScfSubMatcher,
+                      TotalEnergySubMatcher#,
+		      #SmearingOccupation
                       ]), # END ScfInitialization 
                   SM (name = 'EigenvaluesGroupSubMatcher',                      
                       #startReStr = r"\s+orbitals [a-zA-Z\$\_]+ (?: will be written to file) [a-zA-Z]+",
