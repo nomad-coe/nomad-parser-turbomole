@@ -69,10 +69,10 @@ class TurbomoleParserContext(object):
                 match = 'DFT'
                 backend.addValue('electronic_structure_method', match)
 
-	smear_type = section['smearing_kind']
-	if smear_type is None:
-		value = ''
-		backend.addValue('smearing_kind', value)
+        smear_type = section['smearing_kind']
+        if smear_type is None:
+                value = ''
+                backend.addValue('smearing_kind', value)
 
        #------1.atom_position
         atom_pos = []
