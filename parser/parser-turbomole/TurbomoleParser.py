@@ -148,7 +148,7 @@ def build_TurbomoleMainFileSimpleMatcher():
 	]), # END ControlInOutLines
         SM (name = 'post-HF',
             startReStr = r"\s*(?:[a-zA-Z-a-zA-Z0-9\s]+)\s*shell calculation for the wavefunction models",
-	    sections = ['section_system'],
+            sections = ['section_system'],
             subMatchers = [
                 SM (r"\s*(?P<electronic_structure_method>[a-zA-Z-a-zA-Z0-9\(\)]+)\s*\-")
             ]),
