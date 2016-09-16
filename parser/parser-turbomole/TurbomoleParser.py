@@ -196,19 +196,19 @@ def build_TurbomoleMainFileSimpleMatcher():
         """                                                                     
         # submatcher for eigenvalue list                                        
         EigenvaluesListSubMatcher =  SM (name = 'EigenvaluesLists',            
-	    repeats =True, 
+            repeats =True, 
 #	    startReStr = r"\s*orbitals $uhfmo_alpha  will be written to file alpha\s*",
             startReStr = r"\s*(?: alpha|beta)\:\s*",
             sections = ['turbomole_section_eigenvalues_list%s' % addStr],        
             subMatchers = [                                                     
-		 SM (r"\s*(?: irrep)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % (1 * (addStr,)), repeats = True),
+                 SM (r"\s*(?: irrep)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % (1 * (addStr,)), repeats = True),
 		 #SM (r"\s*(?: irrep)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % (addStr, addStr, addStr, addStr, addStr), repeats = True), 	+	#SM (r"\s*(?: irrep)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % addStr, r"\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % addStr, r"\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % addStr, r"\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % addStr, r"\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % addStr, repeats = True),
-		 SM (r"\s*(?: eigenvalues H)\s*[-+0-9.eEdD\s]+", repeats = True),
+                 SM (r"\s*(?: eigenvalues H)\s*[-+0-9.eEdD\s]+", repeats = True),
                  SM (r"\s*(?: eV)\s*(?P<turbomole_eigenvalue_eigenvalue%s>[-+0-9.eEdD]+)" % (1 * (addStr,)), repeats = True)#,
 #                 SM (r"\s*(?: occupation)\s*(?P<turbomole_eigenvalue_occupation%s>[0-9.\s]+)" % (1 * (addStr,)), repeats = True)
             ]) 
         return SM (name = 'EigenvaluesGroup',                                   
-	    startReStr = "\s*orbitals\s*\$",
+            startReStr = "\s*orbitals\s*\$",
             #startReStr = "\s*(?: alpha|beta)\:\s*",
             sections = ['turbomole_section_eigenvalues_group%s' % addStr],       
             subMatchers = [                                                     
@@ -227,11 +227,11 @@ def build_TurbomoleMainFileSimpleMatcher():
     # the verbatim writeout of the geometry.in is not considered for getting the structure data
     # using the geometry output of aims has the advantage that it has a clearer structure
     geometrySubMatcher = SM (name = 'Geometry',                                 
-	startReStr = r"\s*\|\s*Atomic coordinate",
+        startReStr = r"\s*\|\s*Atomic coordinate",
         sections = ['section_system'],                              
         subMatchers = [                                                         
         SM (r"\s*-{20}-*", weak = True),                                        
-	SM (startReStr = r"\s*atomic coordinates",
+        SM (startReStr = r"\s*atomic coordinates",
             subMatchers = [                                                     
             SM (r"\s*(?P<turbomole_geometry_atom_positions_x__angstrom>[-+0-9.]+)\s+"
                  "(?P<turbomole_geometry_atom_positions_y__angstrom>[-+0-9.]+)\s+"
@@ -291,8 +291,10 @@ def build_TurbomoleMainFileSimpleMatcher():
 	startReStr = r"\s*=========================================================================",
         forwardMatch = True,
         subMatchers = [
-        SM (r"\s*\*\s*RHF  energy\s*\:\s*(?P<turbomole_HF_total_energy_final__eV>[-+0-9.eEdD]+)"),
-	SM (r"\s*\*\s*UHF  energy\s*\:\s*(?P<turbomole_HF_total_energy_final__eV>[-+0-9.eEdD]+)"),
+        #SM (r"\s*\*\s*RHF  energy\s*\:\s*(?P<turbomole_HF_total_energy_final__eV>[-+0-9.eEdD]+)"),
+        SM (r"\s*\*\s*RHF  energy\s*\:\s*(?P<energy_total__eV>[-+0-9.eEdD]+)"),
+	#SM (r"\s*\*\s*UHF  energy\s*\:\s*(?P<turbomole_HF_total_energy_final__eV>[-+0-9.eEdD]+)"),
+        SM (r"\s*\*\s*UHF  energy\s*\:\s*(?P<energy_total__eV>[-+0-9.eEdD]+)"),
         SM (r"\s*\*\s*Final MP2 energy\s*\:\s*(?P<turbomole_MP2_total_energy_final__eV>[-+0-9.eEdD]+)"),
         SM (r"\s*\*\s*Final CCSD energy\s*\:\s*(?P<turbomole_CCSD_total_energy_final__eV>[-+0-9.eEdD]+)"),
 	SM (r"\s*\*\s*Final CC2 energy\s*\:\s*(?P<turbomole_CC2_total_energy_final__eV>[-+0-9.eEdD]+)"),
