@@ -89,6 +89,29 @@ class TurbomoleParserContext(object):
         if atom_labels is not None:
            backend.addArrayValues('atom_labels', np.asarray(atom_labels))
 
+    def onClose_turbomole_section_irrep_list(self, backend, gIndex, section):
+
+        irrep_name = section['turbomole_irreducible_representation_state_str']
+        for item in range(len(irrep_name)):
+            Irrepresent = irrep_name[item].split()
+            for i in range(len(Irrepresent)):
+                backend.addValue('turbomole_irreducible_representation_state', Irrepresent[i])
+
+    def onClose_turbomole_section_eigenvalues_list(self, backend, gIndex, section):
+
+        eigenvalues_name = section['turbomole_eigenvalue_eigenvalue_str']
+        for mem in range(len(eigenvalues_name)):
+            Eigenval = eigenvalues_name[mem].split()
+            for t in range(len(Eigenval)):
+                backend.addValue('eigenvalues_values', float(Eigenval[t])*1.602176565e-19)
+
+        occupation_name = section['turbomole_eigenvalue_occupation_str']
+        if not occupation_name == None:
+            for ele in range(len(occupation_name)):
+                Occupat = occupation_name[ele].split()
+                for e in range(len(Occupat)):
+                    backend.addValue('eigenvalues_occupation', float(Occupat[e]))
+
     def setStartingPointCalculation(self, parser):
         backend = parser.backend
         backend.openSection('section_calculation_to_calculation_refs')
@@ -152,13 +175,6 @@ def build_TurbomoleMainFileSimpleMatcher():
             subMatchers = [
                 SM (r"\s*(?P<electronic_structure_method>[a-zA-Z-a-zA-Z0-9\(\)]+)\s*\-")
             ]),
-#	SM (name = "smearing",
-#	    startReStr = r"\s*Fermi\s*smearing\s*switched\s*on",
-#	    sections = ["section_system"],
-#	    subMatchers = [
-#		SM (r"\s*(?P<smearing_kind>[a-zA-Z]+)\s*smearing switched on"),
-#		SM (r"\s*Final electron temperature\:\s*(?P<smearing_width>[0-9.eEdD]+)")
-#	    ]),
 	SM (name = 'XC functional',
 	    startReStr = r"\s*density functional",
 	    sections = ['turbomole_section_functionals'],
@@ -180,48 +196,6 @@ def build_TurbomoleMainFileSimpleMatcher():
        #SM (r"\s*-{20}-*", weak = True)                                         
         ])    
 
-    ########################################                                    
-    # submatcher for eigenvalues                                                
-    # first define function to build subMatcher for normal case and scalar ZORA 
-
-    # Here the separation between the parsed string of eigenvalues needs to be done! 
-    def build_eigenvaluesGroupSubMatcher(addStr):                               
-        """Builds the SimpleMatcher to parse the normal and the scalar ZORA eigenvalues in aims.
-                                                                                
-        Args:                                                                   
-            addStr: String that is appended to the metadata names.              
-                                                                                
-        Returns:                                                                
-            SimpleMatcher that parses eigenvalues with metadata according to addStr. 
-        """                                                                     
-        # submatcher for eigenvalue list                                        
-        EigenvaluesListSubMatcher =  SM (name = 'EigenvaluesLists',            
-            repeats =True, 
-#	    startReStr = r"\s*orbitals $uhfmo_alpha  will be written to file alpha\s*",
-            startReStr = r"\s*(?: alpha|beta)\:\s*",
-            sections = ['turbomole_section_eigenvalues_list%s' % addStr],        
-            subMatchers = [                                                     
-                 SM (r"\s*(?: irrep)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % (1 * (addStr,)), repeats = True),
-		 #SM (r"\s*(?: irrep)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % (addStr, addStr, addStr, addStr, addStr), repeats = True), 	+	#SM (r"\s*(?: irrep)\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % addStr, r"\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % addStr, r"\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % addStr, r"\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % addStr, r"\s*(?P<turbomole_irreducible_representation_state%s>[0-9a\s]+)" % addStr, repeats = True),
-                 SM (r"\s*(?: eigenvalues H)\s*[-+0-9.eEdD\s]+", repeats = True),
-                 SM (r"\s*(?: eV)\s*(?P<turbomole_eigenvalue_eigenvalue%s>[-+0-9.eEdD]+)" % (1 * (addStr,)), repeats = True)#,
-#                 SM (r"\s*(?: occupation)\s*(?P<turbomole_eigenvalue_occupation%s>[0-9.\s]+)" % (1 * (addStr,)), repeats = True)
-            ]) 
-        return SM (name = 'EigenvaluesGroup',                                   
-            startReStr = "\s*orbitals\s*\$",
-            #startReStr = "\s*(?: alpha|beta)\:\s*",
-            sections = ['turbomole_section_eigenvalues_group%s' % addStr],       
-            subMatchers = [                                                     
-            SM (name = 'EigenvaluesNoSpin',                          
-                startReStr = r"\s*(?: alpha|beta)\:\s*",
-                sections = ['turbomole_section_eigenvalues_spin%s' % addStr],    
-                forwardMatch = True,                                            
-                subMatchers = [                                                 
-                EigenvaluesListSubMatcher.copy()                                
-                ]), # END EigenvaluesNoSpinNonPeriodic                          
-            ])                                                                  
-   # now construct the two subMatchers                                         
-    EigenvaluesGroupSubMatcher = build_eigenvaluesGroupSubMatcher('')   
     #####################################################################
     # subMatcher for geometry                                                   
     # the verbatim writeout of the geometry.in is not considered for getting the structure data
@@ -239,6 +213,23 @@ def build_TurbomoleMainFileSimpleMatcher():
                  "(?P<turbomole_geometry_atom_labels>[a-zA-Z]+)\s+(?P<turbomole_geometry_atom_charge>[0-9.]+)", repeats = True)
             ])                                                                  
         ])                                                                      
+    IrRepresentationSubMatcher = SM(name = 'IrRep',
+        repeats =True,
+        startReStr = r"\s*(?: alpha|beta)\:\s*",
+        sections = ['turbomole_section_irrep_list'],
+        subMatchers = [
+            SM (r"\s*(?: irrep)\s*(?P<turbomole_irreducible_representation_state_str>[0-9a-z\s]+)", repeats = True)
+        ])
+    EigenvaluesSubMatcher = SM(name = 'Eigenvalues',
+        repeats =True,
+        #startReStr = r"\s*(?: alpha|beta)\:\s*",
+        startReStr = r"\s*eigenvalues H",
+        endReStr = r"\s*irrep",
+        sections = ['turbomole_section_eigenvalues_list'],
+        subMatchers = [
+            SM (r"\s*(?: eV)\s*(?P<turbomole_eigenvalue_eigenvalue_str>[-+0-9a-z.eEdD\s]+)", repeats = True),
+            SM (r"\s*(?: occupation)\s*(?P<turbomole_eigenvalue_occupation_str>[0-9.\s]+)", repeats = True)
+        ])
     ########################################
     # submatcher for atomic forces
     ForcesMatcher = SM (name = 'AtomicForces',
@@ -461,15 +452,10 @@ def build_TurbomoleMainFileSimpleMatcher():
 		      TotalEnergyScfSubMatcher,
                       TotalEnergySubMatcher#,
 		      #SmearingOccupation
-                      ]), # END ScfInitialization 
-                  SM (name = 'EigenvaluesGroupSubMatcher',                      
-                      #startReStr = r"\s+orbitals [a-zA-Z\$\_]+ (?: will be written to file) [a-zA-Z]+",
-		      startReStr = r"\s*orbitals\s*\$",
-                      #sections = ['section_scf_iteration'],                     
-                      subMatchers = [                                           
-                      EigenvaluesGroupSubMatcher                               
-                      ])
+                      ])#, # END ScfInitialization 
                   ]), # END SingleConfigurationCalculation
+            #IrRepresentationSubMatcher,
+            EigenvaluesSubMatcher,
 	    ForcesMatcher,
             SM (name = 'PostHFTotalEnergies',
                 startReStr = r"\s*Energy of reference wave function is",
