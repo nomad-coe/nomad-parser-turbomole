@@ -27,7 +27,11 @@ class TurbomoleParserContext(object):
         This allows a consistent setting and resetting of the variables,
         when the parsing starts and when a section_run closes.
         """
+        self.secMethodIndex = None
+        self.secSystemDescriptionIndex = None
         self.lastCalculationGIndex = None
+        self.singleConfCalcs = []
+        self.geoConvergence = None
 
     def startedParsing(self, fInName, parser):
         """Function is called when the parsing starts.
@@ -45,6 +49,31 @@ class TurbomoleParserContext(object):
         # allows to reset values if the same superContext is used to parse different files
         self.initialize_values()
 
+    def onClose_section_run(self, backend, gIndex, section):
+
+        gIndexTmp = backend.openSection('section_single_configuration_calculation')
+        if self.geoConvergence is not None:
+            backend.addValue('turbomole_geometry_optimization_converged', self.geoConvergence)
+            if self.geoConvergence is True:
+                sampling_method = "geometry_optimization"
+            elif len(self.singleConfCalcs) > 1:
+                pass
+            else:
+                return
+            samplingGIndex = backend.openSection("section_sampling_method")
+            backend.addValue("sampling_method", sampling_method)
+            backend.closeSection("section_sampling_method", samplingGIndex)
+            frameSequenceGIndex = backend.openSection("section_frame_sequence")
+            backend.addValue("frame_sequence_to_sampling_ref", samplingGIndex)
+            backend.addArrayValues("frame_sequence_local_frames_ref", np.asarray(self.singleConfCalcs))
+            backend.closeSection("section_frame_sequence", frameSequenceGIndex)
+
+        backend.closeSection('section_single_configuration_calculation', gIndexTmp)
+
+    def onOpen_section_method(self, backend, gIndex, section):
+        # keep track of the latest method section
+        self.secMethodIndex = gIndex
+
     ###################################################################
     # (3.4) onClose for geometry and force (section_system)
     # todo: maybe we can move the force to onClose_section_single_configuration_calculation in the future. 
@@ -53,9 +82,37 @@ class TurbomoleParserContext(object):
     def onClose_turbomole_section_functionals(self, backend, gIndex, section):
         functional_names = section["XC_functional_type"]
 
-        s = backend.openSection("section_XC_functionals")
-        backend.addValue('XC_functional_name', functional_names[-1])
-        backend.closeSection("section_XC_functionals", s)
+        if not functional_names == None:
+            functional = functional_names[-1]
+        if functional:
+            functionalMap = {
+                "S-VWN":  ["LDA_X", "LDA_C_VWN_3"],
+                "PWLDA":  ["LDA_X", "LDA_C_PW"],
+                "B-VWN":  ["GGA_X_B88", "LDA_C_VWN"],
+                "B-LYP":  ["GGA_X_B88", "GGA_C_LYP"],
+                "B-P":    ["LDA_X", "GGA_X_B88", "LDA_C_VWN", "GGA_C_P86"],
+                "B-P86":  ["LDA_X", "GGA_X_B88", "LDA_C_VWN", "GGA_C_P86"],
+                "PBE":    ["GGA_X_PBE", "GGA_C_PBE"],
+                "TPSS":   ["LDA_X", "MGGA_X_TPSS", "LDA_C_PW", "MGGA_C_TPSS"],
+                "M06":    ["MGGA_X_M06", "MGGA_C_M06"],
+                "BH-LYP": ["HYB_GGA_XC_BHANDHLYP"],
+                "B3-LYP": ["HYB_GGA_XC_B3LYP"],
+                "PBE0":   ["HYB_GGA_XC_PBEH"],
+                "TPSSh":  ["HYB_MGGA_XC_TPSSH"],
+                "M06-2X": ["MGGA_X_M06_2X", "MGGA_C_M06_2X"],
+                "B2-PLYP":["HYB_GGA_XC_B2PLYP"]
+            }
+        nomadNames = functionalMap.get(functional)
+        if not nomadNames:
+            raise Exception("Unhandled xc functional %s found" % functional)
+        for name in nomadNames:
+            s = backend.openSection("section_XC_functionals")
+            backend.addValue('XC_functional_name', name)
+            backend.closeSection("section_XC_functionals", s)
+
+#    def onOpen_section_system(self, backend, gIndex, section):
+#        # keep track of the latest system description section
+#        self.secSystemDescriptionIndex = gIndex
 
     def onClose_section_system(self, backend, gIndex, section):
         """Trigger called when section_system is closed.
@@ -87,6 +144,8 @@ class TurbomoleParserContext(object):
         #------2.atom labels
         atom_labels = section['turbomole_geometry_atom_labels']
         if atom_labels is not None:
+           for i in range(len(atom_labels)):
+               atom_labels[i] = atom_labels[i].capitalize()
            backend.addArrayValues('atom_labels', np.asarray(atom_labels))
 
     def onClose_turbomole_section_irrep_list(self, backend, gIndex, section):
@@ -111,6 +170,19 @@ class TurbomoleParserContext(object):
                 Occupat = occupation_name[ele].split()
                 for e in range(len(Occupat)):
                     backend.addValue('eigenvalues_occupation', float(Occupat[e]))
+
+    def onOpen_section_single_configuration_calculation(self, backend, gIndex, section):
+        self.singleConfCalcs.append(gIndex)
+
+    def onClose_section_single_configuration_calculation(self, backend, gIndex, section):
+        if section['turbomole_geometry_optimization_converged'] is not None:
+            if section['turbomole_geometry_optimization_converged'][-1] == 'FULFILLED':
+                self.geoConvergence = True
+            else:
+                self.geoConvergence = False
+
+        backend.addValue('single_configuration_to_calculation_method_ref', self.secMethodIndex)
+        backend.addValue('single_configuration_calculation_to_system_ref', self.secSystemDescriptionIndex)
 
     def setStartingPointCalculation(self, parser):
         backend = parser.backend
@@ -244,8 +316,9 @@ def build_TurbomoleMainFileSimpleMatcher():
     TotalEnergyScfSubMatcher = SM (name = 'TotalEnergyScf',                    
         repeats =True, 
 	#startReStr = r"\s*scf convergence criterion",
-        startReStr = r"\s*current damping\s*:\s*",                          
-        forwardMatch = True,
+        #startReStr = r"\s*current damping\s*:\s*",                          
+        startReStr = r"\s*ITERATION  ENERGY\s*",
+        #forwardMatch = True,
         subMatchers = [                                                         
         SM (r"\s*current damping\s*:\s*(?P<turbomole_energy_scf_damping>[0-9.eEdD]+)"),
         SM (r"\s*(?P<turbomole_iteration_number>[0-9]+)\s*(?P<turbomole_energy_total_scf_iteration__eV>[-+0-9.eEdD]+)\s*(?P<turbomole_energy_one_scf_iteration__eV>[-+0-9.eEdD]+)"
@@ -332,6 +405,11 @@ def build_TurbomoleMainFileSimpleMatcher():
             ]) 
                                                                                 
         ])  
+
+    RelaxationSubMatcher = SM (name = "relaxation",
+        sections = ["section_single_configuration_calculation"],
+        startReStr = r"\s*CONVERGENCY CRITERIA (?P<turbomole_geometry_optimization_converged>FULFILLED) IN CYCLE",
+        subMatchers = [])
     ########################################
     # submatcher for pertubative GW eigenvalues
     # first define function to build subMatcher
@@ -470,7 +548,8 @@ def build_TurbomoleMainFileSimpleMatcher():
 		PTEnergySubMatcher
 		]),
 	    GWEigenvaluesGroupSubMatcher
-           ]) # CLOSING SM NewRun                                               
+           ]), # CLOSING SM NewRun                                               
+        RelaxationSubMatcher
         ]) # END Root  
 
 def get_cachingLevelForMetaName(metaInfoEnv):
@@ -485,7 +564,8 @@ def get_cachingLevelForMetaName(metaInfoEnv):
     # manually adjust caching of metadata
     cachingLevelForMetaName = {
                                 'eigenvalues_eigenvalues': CachingLevel.Cache,
-                                'eigenvalues_kpoints':CachingLevel.Cache
+                                'eigenvalues_kpoints':CachingLevel.Cache,
+                                'turbomole_geometry_optimization_converged': CachingLevel.Cache
                                 }
 
     # Set caching for temparary storage variables
