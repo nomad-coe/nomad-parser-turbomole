@@ -82,10 +82,12 @@ class TurbomoleParserContext(object):
     def onClose_turbomole_section_functionals(self, backend, gIndex, section):
         functional_names = section["XC_functional_type"]
 
-        if not functional_names == None:
-            functional = functional_names[-1]
+	if functional_names == None: functional = "HF" #default method is Hartree-Fock
+	else: functional = functional_names[-1]
+
         if functional:
             functionalMap = {
+                "HF":     ["HF_X"],
                 "S-VWN":  ["LDA_X", "LDA_C_VWN_3"],
                 "PWLDA":  ["LDA_X", "LDA_C_PW"],
                 "B-VWN":  ["GGA_X_B88", "LDA_C_VWN"],
@@ -110,16 +112,16 @@ class TurbomoleParserContext(object):
             backend.addValue('XC_functional_name', name)
             backend.closeSection("section_XC_functionals", s)
 
-#    def onOpen_section_system(self, backend, gIndex, section):
-#        # keep track of the latest system description section
-#        self.secSystemDescriptionIndex = gIndex
+    def onOpen_section_system(self, backend, gIndex, section):
+        # keep track of the latest system description section
+        self.secSystemDescriptionIndex = gIndex
 
     def onClose_section_system(self, backend, gIndex, section):
         """Trigger called when section_system is closed.
         Writes atomic positions, atom labels and lattice vectors.
         """
         # keep track of the latest system description section
-        self.secSystemDescriptionIndex = gIndex
+        #self.secSystemDescriptionIndex = gIndex
 
         method_name = section['electronic_structure_method']
         if method_name is None:
@@ -217,7 +219,7 @@ def build_TurbomoleMainFileSimpleMatcher():
         subMatchers = [                                                         
         SM (name = 'ControlInOutLines',                                         
             startReStr = r"\s*we will work with the",                                         
-            sections = ['section_topology'],                                    
+            sections = ['section_topology','turbomole_section_functionals'],                                    
             weak = True,                                                        
             subFlags = SM.SubFlags.Unordered,                                   
             subMatchers = [                                                     
@@ -240,20 +242,11 @@ def build_TurbomoleMainFileSimpleMatcher():
             SM (r"\s*total number of contracted shells\s*:\s*(?P<turbomole_controlInOut_tot_contracted_shells>[0-9]+)",sections = ['section_basis_set'], repeats = True),
             SM (r"\s*total number of cartesian basis functions\s*:\s*(?P<turbomole_controlInOut_tot_cartesian_func>[0-9]+)",sections = ['section_basis_set'], repeats = True),   
             SM (r"\s*total number of SCF-basis functions\s*:\s*(?P<turbomole_controlInOut_tot_scf_basis_func>[0-9]+)",sections = ['section_basis_set'], repeats = True),
-	]), # END ControlInOutLines
-        SM (name = 'post-HF',
-            startReStr = r"\s*(?:[a-zA-Z-a-zA-Z0-9\s]+)\s*shell calculation for the wavefunction models",
-            sections = ['section_system'],
-            subMatchers = [
-                SM (r"\s*(?P<electronic_structure_method>[a-zA-Z-a-zA-Z0-9\(\)]+)\s*\-")
-            ]),
-	SM (name = 'XC functional',
-	    startReStr = r"\s*density functional",
-	    sections = ['turbomole_section_functionals'],
-	    subMatchers = [ 
-	    SM (r"\s*(?P<XC_functional_type>[a-zA-Z-a-zA-Z0-9]+)\s*(?: functional)"),
-	    SM (r"\s*(?P<XC_functional_type>[a-zA-Z-a-zA-Z0-9]+)\s*(?: meta-GGA functional)"),
-	    SM (r"(?:[a-zA-Z-a-zA-Z0-9\s]+)\s*functional\:\s*(?P<XC_functional_type>[a-zA-Z-a-zA-Z0-9]+)"),
+	    SM (r"\s*density functional"), # XC functional matching follows for turbomole_section_functionals
+	    SM (r"\s*\+------------------\+\s*"),
+            SM (r"\s*(?P<XC_functional_type>[a-zA-Z-a-zA-Z0-9]+)\s*(?: functional)"),
+            SM (r"\s*(?P<XC_functional_type>[a-zA-Z-a-zA-Z0-9]+)\s*(?: meta-GGA functional\s)"),
+            SM (r"(?:[a-zA-Z-a-zA-Z0-9\s]+)\s*functional\:\s*(?P<XC_functional_type>[a-zA-Z-a-zA-Z0-9]+)"),
             SM (r"\s*exchange:\s*(?P<turbomole_controlInOut_functional_type_exchange>[a-zA-Z-+a-zA-Z0-9\(\)\s.\*]+)"),
             SM (r"\s*correlation:\s*(?P<turbomole_controlInOut_functional_type_correlation>[a-zA-Z-+a-zA-Z0-9\(\)\s.\*]+)"),
             SM (r"\s*spherical integration\s*:\s*(?P<turbomole_controlInOut_grid_integration>[a-zA-Z\'\s]+)"),
@@ -264,10 +257,14 @@ def build_TurbomoleMainFileSimpleMatcher():
             SM (r"\s*integration cells\s*:\s*(?P<turbomole_controlInOut_grid_integration_cells>[0-9]+)"),
             SM (r"\s*partition function\s*:\s*(?P<turbomole_controlInOut_grid_partition_func>[a-zA-Z]+)"),
             SM (r"\s*partition sharpness\s*:\s*(?P<turbomole_controlInOut_grid_partition_sharpness>[0-9]+)")
-              ])
-       #SM (r"\s*-{20}-*", weak = True)                                         
+	]), # END ControlInOutLines
+        SM (name = 'post-HF',
+            startReStr = r"\s*(?:[a-zA-Z-a-zA-Z0-9\s]+)\s*shell calculation for the wavefunction models",
+            sections = ['section_system'],
+            subMatchers = [
+                SM (r"\s*(?P<electronic_structure_method>[a-zA-Z-a-zA-Z0-9\(\)]+)\s*\-")
+            ])#,
         ])    
-
     #####################################################################
     # subMatcher for geometry                                                   
     # the verbatim writeout of the geometry.in is not considered for getting the structure data
@@ -532,7 +529,6 @@ def build_TurbomoleMainFileSimpleMatcher():
 		      #SmearingOccupation
                       ])#, # END ScfInitialization 
                   ]), # END SingleConfigurationCalculation
-            #IrRepresentationSubMatcher,
             EigenvaluesSubMatcher,
 	    ForcesMatcher,
             SM (name = 'PostHFTotalEnergies',
