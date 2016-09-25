@@ -24,10 +24,10 @@ object TurbomoleParser extends SimpleExternalParserGenerator(
   mainFileRe = """\s*(?<progr>[a-zA-z0-9_]+)(?:\([^()]+\)) : TURBOMOLE\s*(?<version>.*)
 \s*Copyright \(C\) [0-9]+ TURBOMOLE GmbH, Karlsruhe
 """.r,
-  cmd = Seq(DefaultPythonInterpreter.pythonExe(), "${envDir}/parsers/turbomole/parser/parser-turbomole/TurbomoleParser.py",
+  cmd = Seq(DefaultPythonInterpreter.pythonExe(), "${envDir}/parsers/turbomole/parser/parser-turbomole/parser_turbomole.py",
     "--uri", "${mainFileUri}", "${mainFilePath}"),
   resList = Seq(
-    "parser-turbomole/TurbomoleParser.py",
+    "parser-turbomole/parser_turbomole.py",
     "parser-turbomole/TurbomoleControlInParser.py",
     "parser-turbomole/TurbomoleCommon.py",
     "parser-turbomole/setup_paths.py",
