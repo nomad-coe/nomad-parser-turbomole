@@ -82,8 +82,8 @@ class TurbomoleParserContext(object):
     def onClose_turbomole_section_functionals(self, backend, gIndex, section):
         functional_names = section["XC_functional_type"]
 
-	if functional_names == None: functional = "HF" #default method is Hartree-Fock
-	else: functional = functional_names[-1]
+        if functional_names == None: functional = "HF" #default method is Hartree-Fock
+        else: functional = functional_names[-1]
 
         if functional:
             functionalMap = {
