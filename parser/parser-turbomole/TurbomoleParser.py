@@ -116,22 +116,25 @@ class TurbomoleParserContext(object):
         # keep track of the latest system description section
         self.secSystemDescriptionIndex = gIndex
 
+    def onClose_section_method(self, backend, gIndex, section):
+        """Trigger called when section_method is closed.
+        """
+        method_name = section['electronic_structure_method']
+        if method_name is None:
+                match = 'DFT'
+                backend.addValue('electronic_structure_method', match)
+
+        #smear_type = section['smearing_kind']
+        #if smear_type is None:
+        #        value = ''
+        #        backend.addValue('smearing_kind', value)
+
     def onClose_section_system(self, backend, gIndex, section):
         """Trigger called when section_system is closed.
         Writes atomic positions, atom labels and lattice vectors.
         """
         # keep track of the latest system description section
         #self.secSystemDescriptionIndex = gIndex
-
-        method_name = section['electronic_structure_method']
-        if method_name is None:
-                match = 'DFT'
-                backend.addValue('electronic_structure_method', match)
-
-        smear_type = section['smearing_kind']
-        if smear_type is None:
-                value = ''
-                backend.addValue('smearing_kind', value)
 
        #------1.atom_position
         atom_pos = []
@@ -256,14 +259,21 @@ def build_TurbomoleMainFileSimpleMatcher():
             SM (r"\s*radial gridsize\s*:\s*(?P<turbomole_controlInOut_grid_radial_grid_size>[0-9]+)"),
             SM (r"\s*integration cells\s*:\s*(?P<turbomole_controlInOut_grid_integration_cells>[0-9]+)"),
             SM (r"\s*partition function\s*:\s*(?P<turbomole_controlInOut_grid_partition_func>[a-zA-Z]+)"),
-            SM (r"\s*partition sharpness\s*:\s*(?P<turbomole_controlInOut_grid_partition_sharpness>[0-9]+)")
+            SM (r"\s*partition sharpness\s*:\s*(?P<turbomole_controlInOut_grid_partition_sharpness>[0-9]+)"),
 	]), # END ControlInOutLines
         SM (name = 'post-HF',
             startReStr = r"\s*(?:[a-zA-Z-a-zA-Z0-9\s]+)\s*shell calculation for the wavefunction models",
-            sections = ['section_system'],
+            #sections = ['section_method'],
             subMatchers = [
                 SM (r"\s*(?P<electronic_structure_method>[a-zA-Z-a-zA-Z0-9\(\)]+)\s*\-")
-            ])#,
+            ]),
+#        SM (name = "smearing",
+#            startReStr = r"\s*and increment of one",
+#            #sections = ["section_method"],
+#            subMatchers = [
+#                SM (r"\s*(?P<smearing_kind>[a-zA-Z]+)\s*smearing switched on"),
+#                SM (r"\s*Final electron temperature\:\s*(?P<smearing_width>[0-9.eEdD]+)")
+#            ])
         ])    
     #####################################################################
     # subMatcher for geometry                                                   
@@ -340,7 +350,7 @@ def build_TurbomoleMainFileSimpleMatcher():
         ]) 
     SmearingOccupation = SM (name = "smearing",
 	startReStr = r"\s*and increment of one",
-        sections = ["section_system"],
+        sections = ["section_method"],
         subMatchers = [
             SM (r"\s*(?P<smearing_kind>[a-zA-Z]+)\s*smearing switched on"),
             SM (r"\s*Final electron temperature\:\s*(?P<smearing_width>[0-9.eEdD]+)")
@@ -513,8 +523,10 @@ def build_TurbomoleMainFileSimpleMatcher():
                   subMatchers = [
                   SM (name = 'PeriodicEmbeddingSettings',                      
                       startReStr = r"\s*\|\s*EMBEDDING IN PERIODIC POINT CHARGES\s*\|",
-                      sections = ['section_method'],                     
+                      #sections = ['section_method'],                     
+                      sections = ['section_run'],
                       subMatchers = [                                           
+                      #SmearingOccupation,
                       EmbeddingSubMatcher                                     
                       ]),
                   SM (name = 'TotalEnergyForEachScfCycle',                            
@@ -523,10 +535,9 @@ def build_TurbomoleMainFileSimpleMatcher():
                       sections = ['section_scf_iteration'],                   
                       subMatchers = [                                         
                       #EigenvaluesGroupSubMatcher,  
-                      SmearingOccupation,
+                      #SmearingOccupation,
 		      TotalEnergyScfSubMatcher,
                       TotalEnergySubMatcher#,
-		      #SmearingOccupation
                       ])#, # END ScfInitialization 
                   ]), # END SingleConfigurationCalculation
             EigenvaluesSubMatcher,
