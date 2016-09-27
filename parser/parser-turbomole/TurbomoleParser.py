@@ -327,6 +327,7 @@ def build_TurbomoleMainFileSimpleMatcher():
         repeats =True, 
 	#startReStr = r"\s*scf convergence criterion",
         #startReStr = r"\s*current damping\s*:\s*",                          
+	sections = ['section_scf_iteration'],
         startReStr = r"\s*ITERATION  ENERGY\s*",
         #forwardMatch = True,
         subMatchers = [                                                         
@@ -538,7 +539,7 @@ def build_TurbomoleMainFileSimpleMatcher():
                   SM (name = 'TotalEnergyForEachScfCycle',                            
 		      startReStr = r"\s*scf convergence criterion",
                       #startReStr = r"\s*STARTING INTEGRAL EVALUATION FOR 1st SCF ITERATION",
-                      sections = ['section_scf_iteration'],                   
+                      #sections = ['section_scf_iteration'],                   
                       subMatchers = [                                         
                       #EigenvaluesGroupSubMatcher,  
                       #SmearingOccupation,
