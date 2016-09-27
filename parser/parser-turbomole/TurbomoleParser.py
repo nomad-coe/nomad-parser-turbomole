@@ -9,6 +9,9 @@ from nomadcore.simple_parser import AncillaryParser, mainFunction
 from nomadcore.simple_parser import SimpleMatcher as SM
 from TurbomoleCommon import get_metaInfo
 import logging, os, re, sys
+from nomadcore.unit_conversion.unit_conversion import convert_unit_function
+
+eV2J = convert_unit_function("eV","J")
 
 ############################################################
 # This is the parser for the main file of turbomole.
@@ -32,6 +35,21 @@ class TurbomoleParserContext(object):
         self.lastCalculationGIndex = None
         self.singleConfCalcs = []
         self.geoConvergence = None
+        self.eigenvalues = []
+        self.occupation = []
+        self.evSymm = []
+        self.alphaEv = None
+    
+    def switchEVSpins(self):
+        """stores alpha spin and prepares for beta spin"""
+        self.alphaEv = {
+            'eigenvalues': self.eigenvalues,
+            'occupation': self.occupation,
+            'evSymm': self.evSymm
+        }
+        self.eigenvalues = []
+        self.occupation = []
+        self.evSymm = []
 
     def startedParsing(self, fInName, parser):
         """Function is called when the parsing starts.
@@ -48,6 +66,10 @@ class TurbomoleParserContext(object):
         self.metaInfoEnv = self.parser.parserBuilder.metaInfoEnv
         # allows to reset values if the same superContext is used to parse different files
         self.initialize_values()
+
+    def onClose_section_eigenvalues(self, backend, gIndex, section):
+        """write eigenvalues to the backend and then cleans local storage"""
+        pass
 
     def onClose_section_run(self, backend, gIndex, section):
 
@@ -154,30 +176,23 @@ class TurbomoleParserContext(object):
                atom_labels[i] = atom_labels[i].capitalize()
            backend.addArrayValues('atom_labels', np.asarray(atom_labels))
 
-    def onClose_x_turbomole_section_irrep_list(self, backend, gIndex, section):
-
+    def onClose_x_turbomole_section_eigenvalues_list(self, backend, gIndex, section):
         irrep_name = section['x_turbomole_irreducible_representation_state_str']
         for item in range(len(irrep_name)):
             Irrepresent = irrep_name[item].split()
-            for i in range(len(Irrepresent)):
-                backend.addValue('x_turbomole_irreducible_representation_state', Irrepresent[i])
+            self.evSymm += Irrepresent
 
-    def onClose_x_turbomole_section_eigenvalues_list(self, backend, gIndex, section):
-
-        s = backend.openSection("section_eigenvalues")
         eigenvalues_name = section['x_turbomole_eigenvalue_eigenvalue_str']
         for mem in range(len(eigenvalues_name)):
             Eigenval = eigenvalues_name[mem].split()
-            for t in range(len(Eigenval)):
-                backend.addValue('eigenvalues_values', float(Eigenval[t])*1.602176565e-19)
+            self.eigenvalues += map(lambda x: eV2J(float(x)), Eigenval)
 
         occupation_name = section['x_turbomole_eigenvalue_occupation_str']
         if not occupation_name == None:
             for ele in range(len(occupation_name)):
                 Occupat = occupation_name[ele].split()
-                for e in range(len(Occupat)):
-                    backend.addValue('eigenvalues_occupation', float(Occupat[e]))
-        backend.closeSection("section_eigenvalues", s)
+                self.occupation += map(float, Occupat)
+        self.occupation += [0.0 for i in range(len(self.evSymm)-len(self.occupation))]
 
     def onOpen_section_single_configuration_calculation(self, backend, gIndex, section):
         self.singleConfCalcs.append(gIndex)
@@ -295,22 +310,33 @@ def build_TurbomoleMainFileSimpleMatcher():
                  "(?P<x_turbomole_geometry_atom_labels>[a-zA-Z]+)\s+(?P<x_turbomole_geometry_atom_charge>[0-9.]+)", repeats = True)
             ])                                                                  
         ])                                                                      
-    IrRepresentationSubMatcher = SM(name = 'IrRep',
-        repeats =True,
-        startReStr = r"\s*(?: alpha|beta)\:\s*",
-        sections = ['x_turbomole_section_irrep_list'],
-        subMatchers = [
-            SM (r"\s*(?: irrep)\s*(?P<x_turbomole_irreducible_representation_state_str>[0-9a-z\s]+)", repeats = True)
-        ])
     EigenvaluesSubMatcher = SM(name = 'Eigenvalues',
-        repeats =True,
-        #startReStr = r"\s*(?: alpha|beta)\:\s*",
-        startReStr = r"\s*eigenvalues H",
-        endReStr = r"\s*irrep",
-        sections = ['x_turbomole_section_eigenvalues_list'],
+        repeats = False,
+        sections = ["section_eigenvalues"],
+        startReStr = r"\s*(?:alpha:|(?: irrep)\s*(?P<x_turbomole_irreducible_representation_state_str>[0-9a-z\s]+))\s*",
+        forwardMatch = True,
         subMatchers = [
-            SM (r"\s*(?: eV)\s*(?P<x_turbomole_eigenvalue_eigenvalue_str>[-+0-9a-z.eEdD\s]+)", repeats = True),
-            SM (r"\s*(?: occupation)\s*(?P<x_turbomole_eigenvalue_occupation_str>[0-9.\s]+)", repeats = True)
+            SM(r"\s*(?:alpha:)\s*"),
+            SM(r"\s*(?: irrep)\s*(?P<x_turbomole_irreducible_representation_state_str>[0-9a-z\s]+)",
+               repeats = True,
+               sections = ['x_turbomole_section_eigenvalues_list'],
+               subMatchers = [
+                   SM(r"\s*eigenvalues H"),
+                   SM (r"\s*(?: eV)\s*(?P<x_turbomole_eigenvalue_eigenvalue_str>[-+0-9a-z.eEdD\s]+)", repeats = True),
+                   SM (r"\s*(?: occupation)\s*(?P<x_turbomole_eigenvalue_occupation_str>[0-9.\s]+)", repeats = True)
+               ]),
+            SM(r"\s*(?:beta:)\s*",
+               adHoc = lambda parser: parser.superContext.switchEVSpins(),
+               subMatchers = [
+                   SM(r"\s*(?: irrep)\s*(?P<x_turbomole_irreducible_representation_state_str>[0-9a-z\s]+)",
+                      repeats = True,
+                      sections = ['x_turbomole_section_eigenvalues_list'],
+                      subMatchers = [
+                          SM(r"\s*eigenvalues H"),
+                          SM (r"\s*(?: eV)\s*(?P<x_turbomole_eigenvalue_eigenvalue_str>[-+0-9a-z.eEdD\s]+)", repeats = True),
+                          SM (r"\s*(?: occupation)\s*(?P<x_turbomole_eigenvalue_occupation_str>[0-9.\s]+)", repeats = True)
+                      ])
+               ])
         ])
     ########################################
     # submatcher for atomic forces
@@ -419,7 +445,7 @@ def build_TurbomoleMainFileSimpleMatcher():
 
     RelaxationSubMatcher = SM (name = "relaxation",
         #sections = ["section_single_configuration_calculation"],
-        sections = ["section_single_configuration_calculation","section_run"],
+        sections = ["section_single_configuration_calculation"],
         startReStr = r"\s*CONVERGENCY CRITERIA (?P<x_turbomole_geometry_optimization_converged>FULFILLED) IN CYCLE",
         subMatchers = [])
     ########################################
@@ -531,7 +557,6 @@ def build_TurbomoleMainFileSimpleMatcher():
                   SM (name = 'PeriodicEmbeddingSettings',                      
                       startReStr = r"\s*\|\s*EMBEDDING IN PERIODIC POINT CHARGES\s*\|",
                       #sections = ['section_method'],                     
-                      sections = ['section_run'],
                       subMatchers = [                                           
                       #SmearingOccupation,
                       EmbeddingSubMatcher                                     
@@ -545,10 +570,10 @@ def build_TurbomoleMainFileSimpleMatcher():
                       #SmearingOccupation,
 		      TotalEnergyScfSubMatcher,
                       TotalEnergySubMatcher#,
-                      ])#, # END ScfInitialization 
+                      ]), # END ScfInitialization 
+                  EigenvaluesSubMatcher,
+                  ForcesMatcher,
                   ]), # END SingleConfigurationCalculation
-            EigenvaluesSubMatcher,
-	    ForcesMatcher,
             SM (name = 'PostHFTotalEnergies',
                 startReStr = r"\s*Energy of reference wave function is",
 		sections = ['section_single_configuration_calculation','section_scf_iteration'],
