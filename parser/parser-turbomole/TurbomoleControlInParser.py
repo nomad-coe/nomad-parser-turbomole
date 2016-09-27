@@ -63,37 +63,37 @@ def build_TurbomoleControlInKeywordsSimpleMatchers():
     # List the matchers in alphabetical order according to keyword name.
     #
     return [
-        SM (r"\s*\$operating system\s+(?P<turbomole_controlIn_operating_system>[a-zA-Z\s]+)", repeats = True),
-        SM (r"\s*\$symmetry\s+(?P<turbomole_controlIn_symmetry>[a-zA-Z0-9])", repeats = True),
+        SM (r"\s*\$operating system\s+(?P<x_turbomole_controlIn_operating_system>[a-zA-Z\s]+)", repeats = True),
+        SM (r"\s*\$symmetry\s+(?P<x_turbomole_controlIn_symmetry>[a-zA-Z0-9])", repeats = True),
         SM (startReStr = r"\s*\$atoms\s+",
             forwardMatch = True,
             #repeats = True,
             subMatchers = [
-            SM (r"\s*(?P<turbomole_controlIn_atom_label>[a-zA-Z]+)\s+(?P<turbomole_controlIn_atom_number>[0-9]+)\s*(?: \\)", repeats = True)#,
-            #SM (r"\s*(?P<turbomole_controlIn_atom_label>[a-zA-Z]+)\s+(?P<turbomole_controlIn_atom_number>[-0-9]+)\s*(?: \\)", repeats = True)
+            SM (r"\s*(?P<x_turbomole_controlIn_atom_label>[a-zA-Z]+)\s+(?P<x_turbomole_controlIn_atom_number>[0-9]+)\s*(?: \\)", repeats = True)#,
+            #SM (r"\s*(?P<x_turbomole_controlIn_atom_label>[a-zA-Z]+)\s+(?P<x_turbomole_controlIn_atom_number>[-0-9]+)\s*(?: \\)", repeats = True)
             ]),
-        SM (r"\s*\$pople\s+(?P<turbomole_controlIn_pople_kind>[a-zA-Z]+)", repeats = True),
+        SM (r"\s*\$pople\s+(?P<x_turbomole_controlIn_pople_kind>[a-zA-Z]+)", repeats = True),
         SM (r"\s*\$uhfmo_alpha\s*file\=alpha"),
         SM (r"\s*\$uhfmo_beta\s*file\=beta"),
-        SM (r"\s*\$scfiterlimit\s+(?P<turbomole_controlIn_scf_iter_limit>[0-9]+)"),
-        SM (r"\s*\$scfconv\s+(?P<turbomole_controlIn_scf_conv>[0-9]+)"),
-        #SM (r"\s*\$thize\s+(?P<turbomole_controlIn_number_of_integral_stored>[.0-9.eEdD]+)"),
-        SM (r"\s*\$thime\s+(?P<turbomole_controlIn_time_for_integral_calc>[0-9]+)"),
-        SM (r"\s*\$scfdamp\s+start\=(?P<turbomole_controlIn_damping_parameter_start>[.0-9]+)\s*step\=\s*(?P<turbomole_controlIn_damping_parameter_step>[.0-9]+)\s*min\=\s*(?P<turbomole_controlIn_damping_parameter_min>[.0-9]+)"),
+        SM (r"\s*\$scfiterlimit\s+(?P<x_turbomole_controlIn_scf_iter_limit>[0-9]+)"),
+        SM (r"\s*\$scfconv\s+(?P<x_turbomole_controlIn_scf_conv>[0-9]+)"),
+        #SM (r"\s*\$thize\s+(?P<x_turbomole_controlIn_number_of_integral_stored>[.0-9.eEdD]+)"),
+        SM (r"\s*\$thime\s+(?P<x_turbomole_controlIn_time_for_integral_calc>[0-9]+)"),
+        SM (r"\s*\$scfdamp\s+start\=(?P<x_turbomole_controlIn_damping_parameter_start>[.0-9]+)\s*step\=\s*(?P<x_turbomole_controlIn_damping_parameter_step>[.0-9]+)\s*min\=\s*(?P<x_turbomole_controlIn_damping_parameter_min>[.0-9]+)"),
         SM (startReStr = r"\s*\$scfintunit",                                      
             forwardMatch = True,                                                
             subMatchers = [                                                     
-            SM (r"\s*unit\=(?P<turbomole_controlIn_scfintunit_unit>[0-9]+)\s*size\=\s*(?P<turbomole_controlIn_scfintunit_size>[0-9]+)\s*file\=\s*(?P<turbomole_controlIn_scfintunit_file>[a-zA-Z]+)")#,
+            SM (r"\s*unit\=(?P<x_turbomole_controlIn_scfintunit_unit>[0-9]+)\s*size\=\s*(?P<x_turbomole_controlIn_scfintunit_size>[0-9]+)\s*file\=\s*(?P<x_turbomole_controlIn_scfintunit_file>[a-zA-Z]+)")#,
             ]),
         SM (startReStr = r"\s*\$drvopt",                                   
             forwardMatch = True,                                                
             subMatchers = [  
-            SM (r"\s*(?:cartesian)\s+(?P<turbomole_controlIn_cartesian_status>[a-zA-Z]+)"),
-            SM (r"\s*(?:basis)\s+(?P<turbomole_controlIn_basis_status>[a-z-A-Z]+)"),
-            SM (r"\s*(?:global)\s+(?P<turbomole_controlIn_global_status>[a-zA-Z]+)"),
-            SM (r"\s*(?:hessian)\s+(?P<turbomole_controlIn_hessian_status>[a-z-A-Z]+)"),
-            SM (r"\s*(?:dipole)\s+(?P<turbomole_controlIn_dipole_status>[a-zA-Z]+)"),
-            SM (r"\s*(?:\$interconversion)\s+(?P<turbomole_controlIn_interconversion_status>[a-zA-Z]+)")
+            SM (r"\s*(?:cartesian)\s+(?P<x_turbomole_controlIn_cartesian_status>[a-zA-Z]+)"),
+            SM (r"\s*(?:basis)\s+(?P<x_turbomole_controlIn_basis_status>[a-z-A-Z]+)"),
+            SM (r"\s*(?:global)\s+(?P<x_turbomole_controlIn_global_status>[a-zA-Z]+)"),
+            SM (r"\s*(?:hessian)\s+(?P<x_turbomole_controlIn_hessian_status>[a-z-A-Z]+)"),
+            SM (r"\s*(?:dipole)\s+(?P<x_turbomole_controlIn_dipole_status>[a-zA-Z]+)"),
+            SM (r"\s*(?:\$interconversion)\s+(?P<x_turbomole_controlIn_interconversion_status>[a-zA-Z]+)")
             ])
         ]
 
@@ -142,8 +142,8 @@ def get_cachingLevelForMetaName(metaInfoEnv, CachingLvl):
     # Set all controlIn metadata to Cache to capture multiple occurrences of keywords and
     # their last value is then written by the onClose routine in the TurbomoleControlInParserContext.
     for name in metaInfoEnv.infoKinds:
-        if (name.startswith('turbomole_controlIn_') and not name.startswith('turbomole_controlIn_basis_')
-            and not name.startswith('turbomole_controlIn_species_')):
+        if (name.startswith('x_turbomole_controlIn_') and not name.startswith('x_turbomole_controlIn_basis_')
+            and not name.startswith('x_turbomole_controlIn_species_')):
             cachingLevelForMetaName[name] = CachingLevel.Cache
     return cachingLevelForMetaName
 
@@ -162,7 +162,7 @@ def main(CachingLvl):
     metaInfoPath = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),"../../../../nomad-meta-info/meta_info/nomad_meta_info/turbomole.nomadmetainfo.json"))
     metaInfoEnv = get_metaInfo(metaInfoPath)
     # set parser info
-    parserInfo = {'name':'turbomole-control-in-parser', 'version': '1.0'}
+    parserInfo = {'name':'x_turbomole-control-in-parser', 'version': '1.0'}
     # get caching level for metadata
     cachingLevelForMetaName = get_cachingLevelForMetaName(metaInfoEnv, CachingLvl)
     # start parsing
