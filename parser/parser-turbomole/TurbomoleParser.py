@@ -164,6 +164,7 @@ class TurbomoleParserContext(object):
 
     def onClose_x_turbomole_section_eigenvalues_list(self, backend, gIndex, section):
 
+        s = backend.openSection("section_eigenvalues")
         eigenvalues_name = section['x_turbomole_eigenvalue_eigenvalue_str']
         for mem in range(len(eigenvalues_name)):
             Eigenval = eigenvalues_name[mem].split()
@@ -176,6 +177,7 @@ class TurbomoleParserContext(object):
                 Occupat = occupation_name[ele].split()
                 for e in range(len(Occupat)):
                     backend.addValue('eigenvalues_occupation', float(Occupat[e]))
+        backend.closeSection("section_eigenvalues", s)
 
     def onOpen_section_single_configuration_calculation(self, backend, gIndex, section):
         self.singleConfCalcs.append(gIndex)
@@ -415,7 +417,8 @@ def build_TurbomoleMainFileSimpleMatcher():
         ])  
 
     RelaxationSubMatcher = SM (name = "relaxation",
-        sections = ["section_single_configuration_calculation"],
+        #sections = ["section_single_configuration_calculation"],
+        sections = ["section_single_configuration_calculation","section_run"],
         startReStr = r"\s*CONVERGENCY CRITERIA (?P<x_turbomole_geometry_optimization_converged>FULFILLED) IN CYCLE",
         subMatchers = [])
     ########################################
@@ -504,7 +507,7 @@ def build_TurbomoleMainFileSimpleMatcher():
             required = True,                                                    
             forwardMatch = True,                                                
             fixedStartValues={'program_name': 'x_turbomole', 'program_basis_set_type': 'GTOs' },
-            sections = ['section_single_configuration_calculation'],
+            #sections = ['section_single_configuration_calculation'],
             subMatchers = [                                                     
 	    #controlInOutSubMatcher,
             SM (name = 'SectionMethod',                                         
@@ -521,6 +524,7 @@ def build_TurbomoleMainFileSimpleMatcher():
                   #startReStr = r"\s*start vectors will be provided from a core hamilton",
 		  startReStr = r"\s*1e\-*integrals will be neglected if expon",
 		  #startReStr = r"\s*\|",
+		  sections = ['section_single_configuration_calculation'],
                   repeats = True,                                             
                   subMatchers = [
                   SM (name = 'PeriodicEmbeddingSettings',                      
@@ -546,13 +550,15 @@ def build_TurbomoleMainFileSimpleMatcher():
 	    ForcesMatcher,
             SM (name = 'PostHFTotalEnergies',
                 startReStr = r"\s*Energy of reference wave function is",
-                sections = ['section_scf_iteration'],
+		sections = ['section_single_configuration_calculation','section_scf_iteration'],
+                #sections = ['section_scf_iteration'],
                 subMatchers = [
                 CCEnergySubMatcher
                 ]),
 	    SM (name = 'PTTotalEnergies',
 		startReStr = r"\s*\|\s*MP2 relaxed",
-		sections = ['section_scf_iteration'],
+		#sections = ['section_scf_iteration'],
+		sections = ['section_single_configuration_calculation'],
 		subMatchers = [
 		PTEnergySubMatcher
 		]),
