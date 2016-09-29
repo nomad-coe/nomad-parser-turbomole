@@ -313,8 +313,7 @@ def build_TurbomoleMainFileSimpleMatcher():
     EigenvaluesSubMatcher = SM(name = 'Eigenvalues',
         repeats = False,
         sections = ["section_eigenvalues"],
-        startReStr = r"\s*(?:alpha:|(?: irrep)\s*(?P<x_turbomole_irreducible_representation_state_str>[0-9a-z\s]+))\s*",
-        forwardMatch = True,
+        startReStr = r"\s*orbitals .*  will be written to file.*",
         subMatchers = [
             SM(r"\s*(?:alpha:)\s*"),
             SM(r"\s*(?: irrep)\s*(?P<x_turbomole_irreducible_representation_state_str>[0-9a-z\s]+)",
@@ -530,10 +529,10 @@ def build_TurbomoleMainFileSimpleMatcher():
         SM (name = 'NewRun',  
             startReStr = r"\s*Copyright \(C\) ",
 	    endReStr = r"\s*\*\*\*\*\s",
-            repeats = True,                                                     
+            repeats = False,                                                     
             required = True,                                                    
             forwardMatch = True,                                                
-            fixedStartValues={'program_name': 'x_turbomole', 'program_basis_set_type': 'GTOs' },
+            fixedStartValues={'program_name': 'turbomole', 'program_basis_set_type': 'GTOs' },
             #sections = ['section_single_configuration_calculation'],
             subMatchers = [                                                     
 	    #controlInOutSubMatcher,

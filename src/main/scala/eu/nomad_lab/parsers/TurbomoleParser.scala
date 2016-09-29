@@ -21,7 +21,7 @@ object TurbomoleParser extends SimpleExternalParserGenerator(
       )) :: Nil
   ),
   mainFileTypes = Seq("text/.*"),
-  mainFileRe = """\s*(?<progr>[a-zA-z0-9_]+)(?:\([^()]+\)) : TURBOMOLE\s*(?<version>.*)
+  mainFileRe = """\s*(?<progr>[a-zA-z0-9_]+)\s*(?:\([^()]+\))\s*:\s*TURBOMOLE\s*(?<version>.*)
 \s*Copyright \(C\) [0-9]+ TURBOMOLE GmbH, Karlsruhe
 """.r,
   cmd = Seq(DefaultPythonInterpreter.pythonExe(), "${envDir}/parsers/turbomole/parser/parser-turbomole/TurbomoleParser.py",
