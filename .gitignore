@@ -4,6 +4,10 @@ syntax: glob
 *.class
 *~
 *.bak
+*.annotate
+*.json
+*.results
+*.meta
 #*.off
 *.old
 *.pyc
