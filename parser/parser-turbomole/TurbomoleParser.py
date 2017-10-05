@@ -10,6 +10,8 @@ from nomadcore.simple_parser import SimpleMatcher as SM
 from TurbomoleCommon import get_metaInfo
 import logging, os, re, sys
 from nomadcore.unit_conversion.unit_conversion import convert_unit_function
+import TurbomoleCommon as common
+from TurbomoleESCFparser import build_ESCF_parser
 
 eV2J = convert_unit_function("eV","J")
 
@@ -101,6 +103,7 @@ class TurbomoleParserContext(object):
     def onClose_x_turbomole_section_functionals(self, backend, gIndex, section):
         functional_names = section["x_turbomole_XC_functional_type"]
 
+        #TODO: TurboMole can also reload molecular orbitals from a preceding SCF (with unknown XC)
         if functional_names == None: functional = "HF" #default method is Hartree-Fock
         else: functional = functional_names[-1]
 
@@ -221,164 +224,97 @@ def build_root_parser():
     Returns:
        SimpleMatcher that parses main file of Turbomole.
     """
-    return SM (name = 'Root',
+    generic = SM(name = 'NewRun',
+                 #matches only those subprograms without dedicated parser
+                 startReStr = r"\s*(?:aoforce|cosmoprep|egrad|evib|frog|gradsammel|"
+                              r"hesssammel|moloch|odft|relax|ridft|rirpa|sdg|thirdsammel|"
+                              r"vibration|atbandbta|define|eigerf|fdetools|grad|haga|"
+                              r"intense|mpgrad|proper|ricc2|rimp2|ruecker|statpt|tm2molden|"
+                              r"woelfling|bsseenergy|dscf|freeh|gradruecker|"
+                              r"hessruecker|mdprep|mpshift|rdgrad|ricctools|rimp2prep|"
+                              r"sammler|thirdruecker|uff)\s*"
+                              r"\([a-zA-Z0-9.]+\) \: TURBOMOLE [a-zA-Z0-9.]+",
+                 endReStr = r"\s*\*\*\*\*\s",
+                 repeats = False,
+                 #sections = ['section_single_configuration_calculation'],
+                 subMatchers = [
+                     #controlInOutSubMatcher,
+                     SM (name = 'SectionMethod',
+                         startReStr = r"\s*Copyright \(C\) ",
+                         sections = ['section_method'],
+                         subMatchers = [
+                             # parse geometry writeout of aims
+                             common.build_geometry_matcher(),
+                             common.build_controlinout_matcher()
+                         ]),
 
+                     # the actual section for a single configuration calculation starts here
+                     SM (name = 'SingleConfigurationCalculation',
+                         #startReStr = r"\s*start vectors will be provided from a core hamilton",
+                         startReStr = r"\s*1e\-*integrals will be neglected if expon",
+                         #startReStr = r"\s*\|",
+                         sections = ['section_single_configuration_calculation'],
+                         repeats = True,
+                         subMatchers = [
+                             SM (name = 'PeriodicEmbeddingSettings',
+                                 startReStr = r"\s*\|\s*EMBEDDING IN PERIODIC POINT CHARGES\s*\|",
+                                 #sections = ['section_method'],
+                                 subMatchers = [
+                                     #SmearingOccupation,
+                                     build_embedding_matcher()
+                                 ]),
+                             SM (name = 'TotalEnergyForEachScfCycle',
+                                 startReStr = r"\s*scf convergence criterion",
+                                 #startReStr = r"\s*STARTING INTEGRAL EVALUATION FOR 1st SCF ITERATION",
+                                 #sections = ['section_scf_iteration'],
+                                 subMatchers = [
+                                     #EigenvaluesGroupSubMatcher,
+                                     #SmearingOccupation,
+                                     build_total_energy_scf_matcher(),
+                                     build_total_energy_final_matcher()
+                                 ]), # END ScfInitialization
+                             build_eigenvalues_matcher(),
+                             build_forces_matcher(),
+                         ]), # END SingleConfigurationCalculation
+                     SM (name = 'PostHFTotalEnergies',
+                         startReStr = r"\s*Energy of reference wave function is",
+                         sections = ['section_single_configuration_calculation','section_scf_iteration'],
+                         #sections = ['section_scf_iteration'],
+                         subMatchers = [
+                             build_total_energy_coupled_cluster_matcher()
+                         ]),
+                     SM (name = 'PTTotalEnergies',
+                         startReStr = r"\s*\|\s*MP2 relaxed",
+                         #sections = ['section_scf_iteration'],
+                         sections = ['section_single_configuration_calculation'],
+                         subMatchers = [
+                             build_total_energy_perturbation_theory_matcher()
+                         ])
+                 ])
+    modules = [build_ESCF_parser(), generic, build_relaxation_matcher()]
+
+    return SM (name = 'Root',
                startReStr = "",
                forwardMatch = True,
                weak = True,
                sections = ['section_run'],
                subMatchers = [
-                   SM (name = 'ProgramHeader',
-                       startReStr = r"",
-                       subMatchers = [
-                           SM (r"\s*(?:aoforce|cosmoprep|egrad|evib|frog|gradsammel|hesssammel|moloch|odft|relax|ridft|rirpa|sdg|thirdsammel|vibration|atbandbta|define|eigerf|fdetools|grad|haga|intense|mpgrad|proper|ricc2|rimp2|ruecker|statpt|tm2molden|woelfling|bsseenergy|dscf|escf|freeh|gradruecker|hessruecker|mdprep|mpshift|rdgrad|ricctools|rimp2prep|sammler|thirdruecker|uff)\s*\((?P<x_turbomole_nodename>[a-zA-Z0-9.]+)\) \: TURBOMOLE (?P<program_version>[a-zA-Z0-9.]+)")
-                       ]), # END ProgramHeader
-                   #=============================================================================
-                   #  read OUPUT file *.r, the method part comes from INPUT file *.i,  so we
-                   #  do not need to parser INPUT file, the OUTPUT file contains all information
-                   #=============================================================================
-                   SM (name = 'NewRun',
-                       startReStr = r"\s*Copyright \(C\) ",
-                       endReStr = r"\s*\*\*\*\*\s",
-                       repeats = False,
-                       required = True,
-                       forwardMatch = True,
-                       fixedStartValues={'program_name': 'turbomole', 'program_basis_set_type': 'GTOs' },
-                       #sections = ['section_single_configuration_calculation'],
-                       subMatchers = [
-                           #controlInOutSubMatcher,
-                           SM (name = 'SectionMethod',
-                               startReStr = r"\s*Copyright \(C\) ",
-                               sections = ['section_method'],
-                               subMatchers = [
-                                   # parse geometry writeout of aims
-                                   build_geometry_matcher(),
-                                   build_controlinout_matcher()
-                               ]),
-
-                           # the actual section for a single configuration calculation starts here
-                           SM (name = 'SingleConfigurationCalculation',
-                               #startReStr = r"\s*start vectors will be provided from a core hamilton",
-                               startReStr = r"\s*1e\-*integrals will be neglected if expon",
-                               #startReStr = r"\s*\|",
-                               sections = ['section_single_configuration_calculation'],
-                               repeats = True,
-                               subMatchers = [
-                                   SM (name = 'PeriodicEmbeddingSettings',
-                                       startReStr = r"\s*\|\s*EMBEDDING IN PERIODIC POINT CHARGES\s*\|",
-                                       #sections = ['section_method'],
-                                       subMatchers = [
-                                           #SmearingOccupation,
-                                           build_embedding_matcher()
-                                       ]),
-                                   SM (name = 'TotalEnergyForEachScfCycle',
-                                       startReStr = r"\s*scf convergence criterion",
-                                       #startReStr = r"\s*STARTING INTEGRAL EVALUATION FOR 1st SCF ITERATION",
-                                       #sections = ['section_scf_iteration'],
-                                       subMatchers = [
-                                           #EigenvaluesGroupSubMatcher,
-                                           #SmearingOccupation,
-                                           build_total_energy_scf_matcher(),
-                                           build_total_energy_final_matcher()
-                                       ]), # END ScfInitialization
-                                   build_eigenvalues_matcher(),
-                                   build_forces_matcher(),
-                               ]), # END SingleConfigurationCalculation
-                           SM (name = 'PostHFTotalEnergies',
-                               startReStr = r"\s*Energy of reference wave function is",
-                               sections = ['section_single_configuration_calculation','section_scf_iteration'],
-                               #sections = ['section_scf_iteration'],
-                               subMatchers = [
-                                   build_total_energy_coupled_cluster_matcher()
-                               ]),
-                           SM (name = 'PTTotalEnergies',
-                               startReStr = r"\s*\|\s*MP2 relaxed",
-                               #sections = ['section_scf_iteration'],
-                               sections = ['section_single_configuration_calculation'],
-                               subMatchers = [
-                                   build_total_energy_perturbation_theory_matcher()
-                               ]),
-                           build_gw_matcher("_perturbativeGW")
-                       ]), # CLOSING SM NewRun
-                   build_relaxation_matcher()
-               ]) # END Root
-
-def build_controlinout_matcher():
-    return SM (name = 'ControlInOut',
-               startReStr = r"\s*\|\s*basis set information\s",
-               #startReStr = r"\s*SCF run will be profiled",
-
-               subMatchers = [
-                   SM (name = 'ControlInOutLines',
-                       startReStr = r"\s*we will work with the",
-                       sections = ['section_topology','x_turbomole_section_functionals'],
-                       weak = True,
-                       subFlags = SM.SubFlags.Unordered,
-                       subMatchers = [
-                           # Now follows the list to match the aims output from the parsed control.in.
-                           # The search is done unordered since the output is not in a specific order.
-                           # Repating occurrences of the same keywords are captured.
-                           # List the matchers in alphabetical order according to metadata name.
-                           #
-                           SM (name = 'Basis set informations',
-                               startReStr = r"\s*type   atoms  prim   cont   basis",
-                               #repeats = True,
-                               sections = ['section_basis_set'],
-                               subMatchers = [
-                                   # SM (r"\s*-{20}-*", weak = True),
-                                   SM (r"\s*(?P<x_turbomole_controlInOut_atom_labels>[a-zA-Z]+)\s*[0-9]+\s*(?P<x_turbomole_controlInOut_basis_prim_number>[0-9]+)\s*(?P<x_turbomole_controlInOut_basis_cont_number>[0-9]+)\s*(?P<x_turbomole_controlInOut_basis_type>[a-zA-Z-a-zA-Z]+)"
-                                       ,repeats = True)
-                               ]),
-                           # only the first character is important for aims
-                           SM (r"\s*total number of primitive shells\s*:\s*(?P<x_turbomole_controlInOut_tot_primitive_shells>[0-9]+)",sections = ['section_basis_set'], repeats = True),
-                           SM (r"\s*total number of contracted shells\s*:\s*(?P<x_turbomole_controlInOut_tot_contracted_shells>[0-9]+)",sections = ['section_basis_set'], repeats = True),
-                           SM (r"\s*total number of cartesian basis functions\s*:\s*(?P<x_turbomole_controlInOut_tot_cartesian_func>[0-9]+)",sections = ['section_basis_set'], repeats = True),
-                           SM (r"\s*total number of SCF-basis functions\s*:\s*(?P<x_turbomole_controlInOut_tot_scf_basis_func>[0-9]+)",sections = ['section_basis_set'], repeats = True),
-                           SM (r"\s*density functional"), # XC functional matching follows for turbomole_section_functionals
-                           SM (r"\s*\+------------------\+\s*"),
-                           SM (r"\s*(?P<x_turbomole_XC_functional_type>[a-zA-Z-a-zA-Z0-9]+)\s*(?: functional)"),
-                           SM (r"\s*(?P<x_turbomole_XC_functional_type>[a-zA-Z-a-zA-Z0-9]+)\s*(?: meta-GGA functional\s)"),
-                           SM (r"(?:[a-zA-Z-a-zA-Z0-9\s]+)\s*functional\:\s*(?P<x_turbomole_XC_functional_type>[a-zA-Z-a-zA-Z0-9]+)"),
-                           SM (r"\s*exchange:\s*(?P<x_turbomole_controlInOut_functional_type_exchange>[a-zA-Z-+a-zA-Z0-9\(\)\s.\*]+)"),
-                           SM (r"\s*correlation:\s*(?P<x_turbomole_controlInOut_functional_type_correlation>[a-zA-Z-+a-zA-Z0-9\(\)\s.\*]+)"),
-                           SM (r"\s*spherical integration\s*:\s*(?P<x_turbomole_controlInOut_grid_integration>[a-zA-Z\'\s]+)"),
-                           SM (r"\s*spherical gridsize\s*:\s*(?P<x_turbomole_controlInOut_grid_size>[0-9]+)"),
-                           SM (r"\s*i\.e\. gridpoints\s*:\s*(?P<x_turbomole_controlInOut_grid_points_number>[0-9]+)"),
-                           SM (r"\s*radial integration\s*:\s*(?P<x_turbomole_controlInOut_grid_radial_integration>[a-zA-Z0-9\(\)\s]+)"),
-                           SM (r"\s*radial gridsize\s*:\s*(?P<x_turbomole_controlInOut_grid_radial_grid_size>[0-9]+)"),
-                           SM (r"\s*integration cells\s*:\s*(?P<x_turbomole_controlInOut_grid_integration_cells>[0-9]+)"),
-                           SM (r"\s*partition function\s*:\s*(?P<x_turbomole_controlInOut_grid_partition_func>[a-zA-Z]+)"),
-                           SM (r"\s*partition sharpness\s*:\s*(?P<x_turbomole_controlInOut_grid_partition_sharpness>[0-9]+)"),
-                       ]), # END ControlInOutLines
-                   SM (name = 'post-HF',
-                       startReStr = r"\s*(?:[a-zA-Z-a-zA-Z0-9\s]+)\s*shell calculation for the wavefunction models",
-                       #sections = ['section_method'],
-                       subMatchers = [
-                           SM (r"\s*(?P<electronic_structure_method>[a-zA-Z-a-zA-Z0-9\(\)]+)\s*\-")
-                       ]),
-                   #        SM (name = "smearing",
-                   #            startReStr = r"\s*and increment of one",
-                   #            #sections = ["section_method"],
-                   #            subMatchers = [
-                   #                SM (r"\s*(?P<smearing_kind>[a-zA-Z]+)\s*smearing switched on"),
-                   #                SM (r"\s*Final electron temperature\:\s*(?P<smearing_width>[0-9.eEdD]+)")
-                   #            ])
-               ])
-
-def build_geometry_matcher():
-    return SM (name = 'Geometry',
-               startReStr = r"\s*\|\s*Atomic coordinate",
-               sections = ['section_system'],
-               subMatchers = [
-                   SM (r"\s*-{20}-*", weak = True),
-                   SM (startReStr = r"\s*atomic coordinates",
-                       subMatchers = [
-                           SM (r"\s*(?P<x_turbomole_geometry_atom_positions_x__angstrom>[-+0-9.]+)\s+"
-                               "(?P<x_turbomole_geometry_atom_positions_y__angstrom>[-+0-9.]+)\s+"
-                               "(?P<x_turbomole_geometry_atom_positions_z__angstrom>[-+0-9.]+)\s+"
-                               "(?P<x_turbomole_geometry_atom_labels>[a-zA-Z]+)\s+(?P<x_turbomole_geometry_atom_charge>[0-9.]+)", repeats = True)
-                       ])
-               ])
+                   SM(name = 'ProgramHeader',
+                      startReStr = r"\s*(?:aoforce|cosmoprep|egrad|evib|frog|gradsammel|"
+                                   r"hesssammel|moloch|odft|relax|ridft|rirpa|sdg|thirdsammel|"
+                                   r"vibration|atbandbta|define|eigerf|fdetools|grad|haga|"
+                                   r"intense|mpgrad|proper|ricc2|rimp2|ruecker|statpt|tm2molden|"
+                                   r"woelfling|bsseenergy|dscf|escf|freeh|gradruecker|"
+                                   r"hessruecker|mdprep|mpshift|rdgrad|ricctools|rimp2prep|"
+                                   r"sammler|thirdruecker|uff)\s*"
+                                   r"\((?P<x_turbomole_nodename>[a-zA-Z0-9.]+)\) \: "
+                                   r"TURBOMOLE (?P<program_version>[a-zA-Z0-9.]+)",
+                      forwardMatch = True,
+                      fixedStartValues={'program_name': 'turbomole', 'program_basis_set_type': 'GTOs'},
+                      subMatchers = modules
+                      )
+               ]
+               )
 
 def build_eigenvalues_matcher():
     return SM(name = 'Eigenvalues',
@@ -521,52 +457,6 @@ def build_relaxation_matcher():
                sections = ["section_single_configuration_calculation"],
                startReStr = r"\s*CONVERGENCY CRITERIA (?P<x_turbomole_geometry_optimization_converged>FULFILLED) IN CYCLE",
                subMatchers = [])
-
-def build_gw_matcher(section_suffix):
-    GWEigenvaluesListSubMatcher = SM (name = 'x_turbomole_perturbativeGW_EigenvaluesLists',
-                                      #	   startReStr = r"\s*in\s*eV",
-                                      startReStr = r"\s*orb\s+eps\s+QP-eps\s+Sigma\s+Sigma_x\s+Sigma_c\s+Vxc\s+Z\s+dS\/de",
-                                      sections = ['x_turbomole_section_eigenvalues_list%s' % section_suffix],
-                                      subMatchers = [
-                                          SM (r"\s*in\s*eV"),
-                                          SM (r"\s*------------------------------------------------------------------------------------"),
-                                          SM (r"\s*(?P<x_turbomole_eigenstate_number>[0-9]+)\s+(?P<x_turbomole_eigenvalue_ks_GroundState__eV>[-+0-9.eEdD]+)\s+"
-                                              "(?P<x_turbomole_eigenvalue_quasiParticle_energy__eV>[-+0-9.eEdD]+)\s+"
-                                              "(?P<x_turbomole_eigenvalue_ExchangeCorrelation_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
-                                              "(?P<x_turbomole_eigenvalue_ExactExchange_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
-                                              "(?P<x_turbomole_eigenvalue_correlation_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
-                                              "(?P<x_turbomole_eigenvalue_ks_ExchangeCorrelation__eV>[-+0-9.eEdD]+)\s+"
-                                              "(?P<x_turbomole_Z_factor>[-+0-9.eEdD]+)\s+"
-                                              "(?P<x_turbomole_ExchangeCorrelation_perturbativeGW_derivation>[-+0-9.eEdD]+)",
-                                              adHoc = lambda parser: parser.superContext.setStartingPointCalculation(parser),
-                                              repeats = True),
-                                          SM (r"\s*------------------------------------------------------------------------------------"),
-                                          SM (r"\s*(?P<x_turbomole_eigenstate_number>[0-9]+)\s+(?P<x_turbomole_eigenvalue_ks_GroundState__eV>[-+0-9.eEdD]+)\s+"
-                                              "(?P<x_turbomole_eigenvalue_quasiParticle_energy__eV>[-+0-9.eEdD]+)\s+"
-                                              "(?P<x_turbomole_eigenvalue_ExchangeCorrelation_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
-                                              "(?P<x_turbomole_eigenvalue_ExactExchange_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
-                                              "(?P<x_turbomole_eigenvalue_correlation_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
-                                              "(?P<x_turbomole_eigenvalue_ks_ExchangeCorrelation__eV>[-+0-9.eEdD]+)\s+"
-                                              "(?P<x_turbomole_Z_factor>[-+0-9.eEdD]+)\s+"
-                                              "(?P<x_turbomole_ExchangeCorrelation_perturbativeGW_derivation>[-+0-9.eEdD]+)",
-                                              adHoc = lambda parser: parser.superContext.setStartingPointCalculation(parser),
-                                              repeats = True)
-                                      ])
-    return SM (name = 'x_turbomole_perturbativeGW_EigenvaluesGroup',
-               startReStr = r"\s*GW\s*version:",
-               sections = ['x_turbomole_section_eigenvalues_group%s' % section_suffix],
-               subMatchers = [
-                   # non-spin-polarized
-                   SM (name = 'x_turbomole_GW_EigenvaluesNoSpinNonPeriodic',
-                       startReStr = r"\s*orb\s+eps\s+QP-eps\s+Sigma\s+Sigma_x\s+Sigma_c\s+Vxc\s+Z\s+dS\/de",
-                       sections = ['x_turbomole_section_eigenvalues_spin%s' % section_suffix],
-                       forwardMatch = True,
-                       subMatchers = [
-                           #               SM (r"\s*-+"),
-                           #               SM (r"\s*-+"),
-                           GWEigenvaluesListSubMatcher.copy()
-                       ]), # END EigenvaluesNoSpinNonPeriodic
-               ])
 
 def get_cachingLevelForMetaName(metaInfoEnv):
     """Sets the caching level for the metadata.
