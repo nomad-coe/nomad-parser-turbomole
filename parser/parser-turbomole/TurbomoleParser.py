@@ -11,7 +11,7 @@ from TurbomoleCommon import get_metaInfo
 import logging, os, re, sys
 from nomadcore.unit_conversion.unit_conversion import convert_unit_function
 import TurbomoleCommon as common
-from TurbomoleESCFparser import build_ESCF_parser
+from TurbomoleESCFparser import build_escf_parser
 
 eV2J = convert_unit_function("eV","J")
 
@@ -291,7 +291,7 @@ def build_root_parser():
                              build_total_energy_perturbation_theory_matcher()
                          ])
                  ])
-    modules = [build_ESCF_parser(), generic, build_relaxation_matcher()]
+    modules = [build_escf_parser(), generic, build_relaxation_matcher()]
 
     return SM (name = 'Root',
                startReStr = "",
