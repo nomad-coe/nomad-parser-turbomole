@@ -1,7 +1,11 @@
 """This module constructs the parser for the ESCF module from TurboMole"""
 
+import logging
+import re
 from nomadcore.simple_parser import SimpleMatcher as SM
 import TurbomoleCommon as common
+
+logger = logging.getLogger("nomad.turbomoleParser")
 
 def build_escf_parser():
     return SM(name = "ESCF module",
@@ -14,6 +18,22 @@ def build_escf_parser():
     )
 
 def build_gw_matcher():
+    def get_gw_approximation(parser):
+        regex = re.compile(r"\s*type of gw(?P<types>(\s+[0-9]+\s*:\s*\S+)+)\s+(?P<id>[0-9]+)\s*$")
+        match = regex.match(parser.fIn.readline())
+        # id = match.group("id")
+        regex = re.compile(r"\s*(?P<index>[0-9]+)\s*:\s*(?P<name>\S+)")
+        types = match.group("types")
+        approximations = dict()
+        match = regex.match(types)
+        while match:
+            approximations[match.group("index")] = match.group("name")
+            match = regex.match(types, pos = match.end(2))
+        parser.backend.addValue("electronic_structure_method", "G0W0")
+        parser.backend.addValue("calculation_method_kind", "perturbative")
+        #TODO: capture implementation-specific parameters in a subsection
+        # parser.backend.addValue("x_turbomole_GW_approximation", approximations[id])
+
     params = SM (name = 'GW parameters',
                  startReStr = "\s*par[ae]meters:", #typo in Turbomole 6.6 output
                  sections = ["section_method"],
@@ -22,7 +42,11 @@ def build_gw_matcher():
                      SM(r"\s*number of levels to calculate\s+(?P<number_of_eigenvalues>[0-9]+)",
                         name = "num states"),
                      SM(r"\s*number of spin channels\s+(?P<number_of_spin_channels>[0-9]+)",
-                        name = "num spin channels")
+                        name = "num spin channels"),
+                     SM(r"\s*type of gw((\s+[0-9]+\s*:\s*\S+)+)\s+([0-9]+)\s*$",
+                        name = "GW approximation",
+                        forwardMatch = True,
+                        adHoc = get_gw_approximation)
                  ]
                  )
 
