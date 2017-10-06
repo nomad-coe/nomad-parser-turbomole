@@ -11,6 +11,7 @@ def build_escf_parser():
     return SM(name = "ESCF module",
               startReStr = r"\s*escf\s*\([a-zA-Z0-9.]+\)\s+\: TURBOMOLE [a-zA-Z0-9.]+",
               subMatchers = [
+                  common.build_credits_matcher("e s c f"),
                   common.build_geometry_matcher(),
                   common.build_controlinout_matcher(),
                   build_gw_matcher()
@@ -77,8 +78,9 @@ def build_gw_qp_states_matcher_no_spin():
               sections = ["x_turbomole_section_eigenvalues_GW"],
               subMatchers = [
                   SM (r"\s*in\s*eV", required=True, name="GW output unit"),
-                  SM (r"\s*----*", name = "<format>"),
+                  SM (r"\s*----*", name = "<format>", coverageIgnore=True),
                   state,
-                  SM (r"\s*----*", name = "<format>"),
+                  SM (r"\s*----*", name = "<format>", coverageIgnore=True),
                   state.copy(),
+                  SM (r"\s*----*", name = "<format>", coverageIgnore=True),
               ])

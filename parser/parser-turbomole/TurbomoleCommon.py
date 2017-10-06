@@ -6,6 +6,19 @@ from nomadcore.simple_parser import SimpleMatcher as SM
 # by more than one parser.
 ############################################################
 
+def build_credits_matcher(modulename):
+    references = SM (r"\s{5,}[^+ ]+",
+                     name = 'references',
+                     coverageIgnore=True,
+                     repeats = True,
+                     )
+    return SM (name = 'Credits',
+               startReStr = r"\s*" + modulename + r"\s*",
+               coverageIgnore = True,
+               subMatchers = [references],
+               endReStr = r"\s*\+-+\+"
+               )
+
 def build_geometry_matcher():
     atom = SM (r"\s*(?P<x_turbomole_geometry_atom_positions_x__angstrom>[-+0-9.]+)\s+"
                "(?P<x_turbomole_geometry_atom_positions_y__angstrom>[-+0-9.]+)\s+"
