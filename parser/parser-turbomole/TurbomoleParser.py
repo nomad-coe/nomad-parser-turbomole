@@ -151,26 +151,6 @@ class TurbomoleParserContext(object):
             #        value = ''
             #        backend.addValue('smearing_kind', value)
 
-    def onClose_section_system(self, backend, gIndex, section):
-        """Trigger called when section_system is closed.
-        Writes atomic positions, atom labels and lattice vectors.
-        """
-        #------1.atom_position
-        atom_pos = []
-        for i in ['x', 'y', 'z']:
-            api = section['x_turbomole_geometry_atom_positions_' + i]
-            if api is not None:
-                atom_pos.append(api)
-        if atom_pos:
-            # need to transpose array since its shape is [number_of_atoms,3] in the metadata
-            backend.addArrayValues('atom_positions', np.transpose(np.asarray(atom_pos)))
-
-        #------2.atom labels
-        atom_labels = section['x_turbomole_geometry_atom_labels']
-        if atom_labels is not None:
-            for i in range(len(atom_labels)):
-                atom_labels[i] = atom_labels[i].capitalize()
-            backend.addArrayValues('atom_labels', np.asarray(atom_labels))
 
     def onClose_x_turbomole_section_eigenvalues_list(self, backend, gIndex, section):
         irrep_name = section['x_turbomole_irreducible_representation_state_str']

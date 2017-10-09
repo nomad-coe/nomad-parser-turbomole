@@ -1,10 +1,15 @@
 from nomadcore.local_meta_info import loadJsonFile, InfoKindEl
 from nomadcore.simple_parser import SimpleMatcher as SM
+import logging
+import numpy as np
+
+logger = logging.getLogger("nomad.turbomoleParser")
 
 ############################################################
 # This file contains functions that are needed
 # by more than one parser.
 ############################################################
+
 
 def build_credits_matcher(modulename):
     references = SM (r"\s{5,}[^+ ]+",
@@ -19,20 +24,46 @@ def build_credits_matcher(modulename):
                endReStr = r"\s*\+-+\+"
                )
 
+
 def build_geometry_matcher():
-    atom = SM (r"\s*(?P<x_turbomole_geometry_atom_positions_x__angstrom>[-+0-9.]+)\s+"
-               "(?P<x_turbomole_geometry_atom_positions_y__angstrom>[-+0-9.]+)\s+"
-               "(?P<x_turbomole_geometry_atom_positions_z__angstrom>[-+0-9.]+)\s+"
-               "(?P<x_turbomole_geometry_atom_labels>[a-zA-Z]+)\s+"
-               "(?P<x_turbomole_geometry_atom_charge>[0-9.]+)", repeats = True,
-               name="atom data")
-    return SM (name = 'Geometry',
-               startReStr = r"\s*\|\s*Atomic coordinate",
-               sections = ['section_system'],
-               subMatchers = [
-                   SM (r"\s*-{20}-*", weak = True),
-                   SM (startReStr = r"\s*atomic coordinates",subMatchers = [atom])]
-               )
+    atoms = list()
+    atom_re = r"\s*([-+]?[0-9]+\.?[0-9]*)" \
+              r"(\s+[-+]?[0-9]+\.?[0-9]*)" \
+              r"(\s+[-+]?[0-9]+\.?[0-9]*)" \
+              r"(\s+[a-zA-Z]+)" \
+              r"(\s+[0-9]+)?" \
+              r"(\s+[-+]?[0-9]+\.?[0-9]*)" \
+              r"(\s+[-+]?[0-9]+)?" \
+              r"(\s+[-+]?[0-9]+)"  # x, y, z, element, (shells), charge, (pseudo), isotope
+
+    def add_atom(backend, groups):
+        # TODO: figure out meaning of not-always present shells and pseudo columns and process them
+        atoms.append((float(groups[0]), float(groups[1]), float(groups[2]), groups[3],
+                      int(float(groups[5])), int(groups[7])))
+
+    def finalize_data(backend, gIndex, section):
+        pos = np.ndarray(shape=(len(atoms), 3), dtype=float)
+        labels = list()
+        charges = np.ndarray(shape=(len(atoms),), dtype=float)
+        for i, (x, y, z, elem, charge, isotope) in enumerate(atoms):
+            pos[i, 0:3] = (x, y, z)
+            labels.append(elem.capitalize())
+            charges[i] = charge
+        backend.addArrayValues("atom_positions", pos, unit="angstrom")
+        backend.addArrayValues("atom_labels", np.asarray(labels, dtype=str))
+        backend.addArrayValues("atom_atom_number", charges)
+
+    atom = SM(atom_re, repeats=True, name="single atom", startReAction=add_atom)
+    geo_header_re = r"\s*atomic\s+coordinates\s+atom(?:\s+shells)?\s+charge(?:\s+pseudo)?\s+isotop"
+    return SM(name="geometry",
+              startReStr=r"\s*\|\s+Atomic coordinate, charge and isotope? information\s+\|",
+              sections=['section_system'],
+              subMatchers=[
+                  SM(r"\s*-{20}-*", name="<format>", coverageIgnore=True),
+                  SM(geo_header_re, name="atom list", subMatchers=[atom])
+              ],
+              onClose={"section_system": finalize_data}
+              )
 
 def build_controlinout_matcher():
     return SM (name = 'ControlInOut',
