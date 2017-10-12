@@ -11,18 +11,18 @@ logger = logging.getLogger("nomad.turbomoleParser")
 ############################################################
 
 
-def build_credits_matcher(modulename):
-    references = SM (r"\s{5,}[^+ ]+",
-                     name = 'references',
-                     coverageIgnore=True,
-                     repeats = True,
-                     )
-    return SM (name = 'Credits',
-               startReStr = r"\s*" + modulename + r"\s*",
-               coverageIgnore = True,
-               subMatchers = [references],
-               endReStr = r"\s*\+-+\+"
-               )
+def build_credits_matcher(module_name):
+    references = SM(r"\s{5,}[^+ ]+",
+                    name="references",
+                    coverageIgnore=True,
+                    repeats=True,
+                    )
+    return SM(name="Credits",
+              startReStr=r"\s*" + module_name + r"\s*",
+              coverageIgnore=True,
+              subMatchers=[references],
+              endReStr=r"\s*\+-+\+"
+              )
 
 
 def build_geometry_matcher():
@@ -64,6 +64,7 @@ def build_geometry_matcher():
               ],
               onClose={"section_system": finalize_data}
               )
+
 
 def build_controlinout_matcher():
     return SM (name = 'ControlInOut',
@@ -127,6 +128,7 @@ def build_controlinout_matcher():
                    #            ])
                ])
 
+
 def get_metaInfo(filePath):
     """Loads metadata.
 
@@ -136,5 +138,8 @@ def get_metaInfo(filePath):
     Returns:
         metadata which is an object of the class InfoKindEnv in nomadcore.local_meta_info.py.
     """
-    metaInfoEnv, warnings = loadJsonFile(filePath = filePath, dependencyLoader = None, extraArgsHandling = InfoKindEl.ADD_EXTRA_ARGS, uri = None)
-    return metaInfoEnv
+    meta_info_env, warnings = loadJsonFile(filePath=filePath,
+                                           dependencyLoader=None,
+                                           extraArgsHandling=InfoKindEl.ADD_EXTRA_ARGS,
+                                           uri=None)
+    return meta_info_env
