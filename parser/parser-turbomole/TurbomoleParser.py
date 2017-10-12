@@ -138,13 +138,14 @@ class TurbomoleParserContext(object):
         # keep track of the latest system description section
         self.secSystemDescriptionIndex = gIndex
 
-    def onClose_section_method(self, backend, gIndex, section):
-        """Trigger called when section_method is closed.
-        """
-        method_name = section['electronic_structure_method']
-        if method_name is None:
-            match = 'DFT'
-            backend.addValue('electronic_structure_method', match)
+    #TODO: figure out why DFT was set as a default here (was e.g. done for GW calculations)
+    # def onClose_section_method(self, backend, gIndex, section):
+    #     """Trigger called when section_method is closed.
+    #     """
+        # method_name = section['electronic_structure_method']
+        # if method_name is None:
+        #     match = 'DFT'
+        #     backend.addValue('electronic_structure_method', match)
 
             #smear_type = section['smearing_kind']
             #if smear_type is None:
