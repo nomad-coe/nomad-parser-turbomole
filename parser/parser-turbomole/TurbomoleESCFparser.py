@@ -21,21 +21,17 @@ def build_escf_parser():
 
 
 def build_gw_matcher():
-    def get_gw_approximation(parser):
-        regex = re.compile(r"\s*type of gw(?P<types>(\s+[0-9]+\s*:\s*\S+)+)\s+(?P<id>[0-9]+)\s*$")
-        match = regex.match(parser.fIn.readline())
-        # id = match.group("id")
-        regex = re.compile(r"\s*(?P<index>[0-9]+)\s*:\s*(?P<name>\S+)")
-        types = match.group("types")
+    def get_gw_approximation(backend, groups):
+        types = groups[0]
+        regex = re.compile(r"\s*(?P<index>[0-9]+)\s*:\s*(?P<name>[^\s:]+)")
         approximations = dict()
         match = regex.match(types)
         while match:
             approximations[match.group("index")] = match.group("name")
             match = regex.match(types, pos=match.end(2))
-        parser.backend.addValue("electronic_structure_method", "G0W0")
-        parser.backend.addValue("calculation_method_kind", "perturbative")
-        # TODO: capture implementation-specific parameters in a subsection
-        # parser.backend.addValue("x_turbomole_GW_approximation", approximations[id])
+        backend.addValue("electronic_structure_method", "G0W0")
+        backend.addValue("calculation_method_kind", "perturbative")
+        backend.addValue("x_turbomole_gw_approximation", approximations[groups[1]])
 
     params = SM(name="GW parameters",
                 startReStr="\s*par[ae]meters:",  # typo in Turbomole 6.6 output
@@ -46,10 +42,14 @@ def build_gw_matcher():
                        name="num states"),
                     SM(r"\s*number of spin channels\s+(?P<number_of_spin_channels>[0-9]+)",
                        name="num spin channels"),
-                    SM(r"\s*type of gw((\s+[0-9]+\s*:\s*\S+)+)\s+([0-9]+)\s*$",
+                    SM(r"\s*type of gw((?:\s+[0-9]+\s*:\s*\S+)+)\s+([0-9]+)\s*$",
                        name="GW approximation",
-                       forwardMatch=True,
-                       adHoc=get_gw_approximation)
+                       startReAction=get_gw_approximation),
+                    SM(r"\s*rpa response function\s+(?P<x_turbomole_gw_use_rpa_response>[TF])",
+                       name="GW screened interaction"),
+                    SM(r"\s*eta \(Hartree\)\s+(?P<x_turbomole_gw_eta_factor__hartree>"
+                       r"[+-]?[0-9]+.?[0-9]*)",
+                       name="GW eta factor")
                 ]
                 )
 
