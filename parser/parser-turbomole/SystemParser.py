@@ -1,5 +1,9 @@
+import logging
 import numpy as np
 from nomadcore.simple_parser import SimpleMatcher as SM
+import nomadcore.elements as elements
+
+logger = logging.getLogger("nomad.turbomoleParser")
 
 
 class Atom(object):
@@ -8,11 +12,12 @@ class Atom(object):
         self.x = float(x)
         self.y = float(y)
         self.z = float(z)
-        self.elem = elem
-        self.charge = int(float(charge))
+        self.elem = elem.capitalize()
+        self.charge = float(charge)
         self.shells = int(shells) if shells else -1
         self.isotope = int(isotope)
         self.is_pseudo = True if pseudo == "1" else False
+        self.label = self.elem if self.shells > 0 else self.elem+"_1"
 
 
 class SystemParser(object):
@@ -45,24 +50,24 @@ class SystemParser(object):
         def finalize_data(backend, groups):
             pos = np.ndarray(shape=(len(self.__atoms), 3), dtype=float)
             labels = list()
-            charges = np.ndarray(shape=(len(self.__atoms),), dtype=float)
+            atom_numbers = np.ndarray(shape=(len(self.__atoms),), dtype=float)
             for i, atom in enumerate(self.__atoms):
                 pos[i, 0:3] = (atom.x, atom.y, atom.z)
-                labels.append(atom.elem.capitalize())
-                charges[i] = atom.charge
+                labels.append(atom.elem)
+                atom_numbers[i] = elements.get_atom_number(atom.elem)
             backend.addArrayValues("atom_positions", pos, unit="angstrom")
             backend.addArrayValues("atom_labels", np.asarray(labels, dtype=str))
-            backend.addArrayValues("atom_atom_number", charges)
+            backend.addArrayValues("atom_atom_number", atom_numbers)
 
         # x, y, z, element, (shells), charge, (pseudo), isotope
         atom_re = r"\s*([-+]?[0-9]+\.?[0-9]*)" \
-                  r"(\s+[-+]?[0-9]+\.?[0-9]*)" \
-                  r"(\s+[-+]?[0-9]+\.?[0-9]*)" \
-                  r"(\s+[a-zA-Z]+)" \
+                  r"\s+([-+]?[0-9]+\.?[0-9]*)" \
+                  r"\s+([-+]?[0-9]+\.?[0-9]*)" \
+                  r"\s+([a-zA-Z]+)" \
                   r"(\s+[0-9]+)?" \
-                  r"(\s+[-+]?[0-9]+\.?[0-9]*)" \
+                  r"\s+([-+]?[0-9]+\.?[0-9]*)" \
                   r"(\s+[-+]?[0-9]+)?" \
-                  r"(\s+[-+]?[0-9]+)"
+                  r"\s+([-+]?[0-9]+)"
         atom = SM(atom_re, repeats=True, name="single atom", startReAction=add_atom)
         header_re = r"\s*atomic\s+coordinates\s+atom(?:\s+shells)?\s+charge(?:\s+pseudo)?\s+isotop"
         return SM(name="geometry",
