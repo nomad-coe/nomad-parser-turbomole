@@ -227,6 +227,7 @@ def build_root_parser(context):
 
     def finalize_system_data(backend, groups):
         context["geo"].finalize_sections()
+        context["geo"].write_basis_set_mapping()
 
     # shared subparsers created here are automatically stored in the context
     SystemParser(context)

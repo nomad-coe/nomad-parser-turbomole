@@ -37,6 +37,7 @@ def build_gw_matcher(context):
 
     def finalize_system_data(backend, groups):
         context["geo"].finalize_sections()
+        context["geo"].write_basis_set_mapping()
 
     params = SM(name="GW parameters",
                 startReStr="\s*par[ae]meters:",  # typo in Turbomole 6.6 output

@@ -44,6 +44,17 @@ class SystemParser(object):
             self.__backend.closeSection("section_system", self.__index_qm_geo)
             self.__index_qm_geo = -2
 
+    def write_basis_set_mapping(self):
+        """the caller is responsible for opening the enclosing
+        section_single_configuration_calculation"""
+        index = self.__backend.openSection("section_basis_set")
+        mapping = np.ndarray(shape=(len(self.__atoms),), dtype=int)
+        for i, atom in enumerate(self.__atoms):
+            mapping[i] = self.__basis_sets[atom.elem].index
+        self.__backend.addArrayValues("mapping_section_basis_set_atom_centered", mapping)
+        self.__backend.closeSection("section_basis_set", index)
+        return index
+
     def build_qm_geometry_matcher(self):
 
         def open_section(backend, groups):
@@ -99,9 +110,11 @@ class SystemParser(object):
             LocalBasisData.spherical = True
 
         def add_basis_set(backend, groups):
+            # TODO: support assignment of different basis sets to atoms of the same element
             index = backend.openSection("section_basis_set_atom_centered")
-            self.__basis_sets[groups[0]] = BasisSet(name=groups[4], index=index,
-                                                    cartesian=not LocalBasisData.spherical)
+            key = groups[0].capitalize()
+            self.__basis_sets[key] = BasisSet(name=groups[4], index=index,
+                                              cartesian=not LocalBasisData.spherical)
             atom_number = elements.get_atom_number(groups[0].capitalize())
             backend.addValue("basis_set_atom_centered_short_name", groups[4], index)
             backend.addValue("basis_set_atom_number", atom_number, index)
