@@ -12,7 +12,7 @@ import logging, os, re, sys
 from nomadcore.unit_conversion.unit_conversion import convert_unit_function
 import TurbomoleCommon as common
 from SystemParser import SystemParser
-from TurbomoleESCFparser import build_escf_parser
+from ESCFparser import build_escf_parser
 
 eV2J = convert_unit_function("eV","J")
 
