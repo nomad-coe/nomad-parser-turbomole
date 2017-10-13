@@ -116,8 +116,8 @@ class SystemParser(object):
                    r"([A-z0-9-]+)\s+" \
                    r"\[((?:[0-9]+[spdfghij])+)\|((?:[0-9]+[spdfghij])+)\]"
         basis = SM(basis_re, repeats=True, name="basis assignment", startReAction=add_basis_set)
-
-        gauss_type_spherical = SM(r"\s*we will work with the 1s 3p 5d 7f 9g ... basis set",
+        header_re = r"\s*we\s+will\s+work\s+with\s+the\s+1s\s+3p\s+5d\s+7f\s+9g\s+...\s+basis\s+set"
+        gauss_type_spherical = SM(header_re,
                                   name="spherical Gaussians",
                                   subMatchers=[
                                       SM(r"\s*...i.e. with spherical basis functions...",
@@ -127,7 +127,25 @@ class SystemParser(object):
                                   startReAction=set_spherical_basis
                                   )
 
-        return SM(name="Orbital Basis Set",
-                  startReStr=r"\s*\|\s*basis set information\s",
-                  subMatchers=[gauss_type_spherical, basis]
+        return SM(name="Orbital Basis",
+                  startReStr=r"\s*\|\s*basis set information\s*\|",
+                  subMatchers=[
+                      SM(r"\s*\+----*\+", name="<format>", coverageIgnore=True),
+                      gauss_type_spherical,
+                      SM(r"\s*type\s+atoms\s+prim\s+cont\s+basis", name="Orbital Basis"),
+                      SM(r"\s*----*", name="<format>", coverageIgnore=True),
+                      basis,
+                      SM(r"\s*----*", name="<format>", coverageIgnore=True),
+                      SM(r"\s*total:\s*([0-9]+)\s+([0-9]+)\s+([0-9]+)",
+                         name="Orbital Basis"),
+                      SM(r"\s*----*", name="<format>", coverageIgnore=True),
+                      SM(r"\s*total number of primitive shells\s*:\s*([0-9]+)",
+                         name="Orbital Basis"),
+                      SM(r"\s*total number of contracted shells\s*:\s*([0-9]+)",
+                         name="Orbital Basis"),
+                      SM(r"\s*total number of cartesian basis functions\s*:\s*([0-9]+)",
+                         name="Orbital Basis"),
+                      SM(r"\s*total number of SCF-basis functions\s*:\s*([0-9]+)",
+                         name="Orbital Basis"),
+                  ]
                   )

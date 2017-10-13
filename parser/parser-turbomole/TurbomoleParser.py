@@ -244,7 +244,8 @@ def build_root_parser(context):
                          subMatchers = [
                              # parse geometry writeout of aims
                              context["geo"].build_qm_geometry_matcher(),
-                             common.build_controlinout_matcher()
+                             context["geo"].build_orbital_basis_matcher(),
+                             # common.build_controlinout_matcher()
                          ]),
 
                      # the actual section for a single configuration calculation starts here
