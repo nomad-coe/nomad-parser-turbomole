@@ -90,20 +90,20 @@ class SystemParser(object):
 
     def build_orbital_basis_matcher(self):
 
-        spherical = False
+        class LocalBasisData(object):
+            spherical = False
 
         def set_spherical_basis(backend, groups):
-            nonlocal spherical
-            spherical = True
+            LocalBasisData.spherical = True
 
         def add_basis_set(backend, groups):
             index = backend.openSection("section_basis_set_atom_centered")
             self.__basis_sets[groups[0]] = BasisSet(name=groups[4], index=index,
-                                                    cartesian=not spherical)
+                                                    cartesian=not LocalBasisData.spherical)
             atom_number = elements.get_atom_number(groups[0].capitalize())
             backend.addValue("basis_set_atom_centered_short_name", groups[4], index)
             backend.addValue("basis_set_atom_number", atom_number, index)
-            if spherical:
+            if LocalBasisData.spherical:
                 backend.addValue("number_of_basis_functions_in_basis_set_atom_centered",
                                  int(groups[3]), index)
             else:
