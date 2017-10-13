@@ -36,6 +36,9 @@ class SystemParser(object):
         self.__atoms = list()
         self.__basis_sets = dict()
 
+    def set_backend(self, backend):
+        self.__backend = backend
+
     def finalize_sections(self):
         if self.__index_qm_geo >= -1:
             self.__backend.closeSection("section_system", self.__index_qm_geo)
@@ -44,7 +47,6 @@ class SystemParser(object):
     def build_qm_geometry_matcher(self):
 
         def open_section(backend, groups):
-            self.__backend = backend
             self.__index_qm_geo = backend.openSection("section_system")
 
         def add_atom(backend, groups):

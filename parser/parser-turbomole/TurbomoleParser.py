@@ -37,6 +37,10 @@ class TurbomoleParserContext(object):
             raise Exception("sub data storage '%s' already declared!" % key)
         self.__data[key] = value
 
+    def __iter__(self):
+        for key, sub_parser in self.__data.items():
+            yield key, sub_parser
+
     def initialize_values(self):
         """Initializes the values of certain variables.
 
@@ -217,6 +221,10 @@ def build_root_parser(context):
        SimpleMatcher that parses main file of Turbomole.
     """
 
+    def set_backends(backend, groups):
+        for key, sub_parser in context:
+            sub_parser.set_backend(backend)
+
     def finalize_system_data(backend, groups):
         context["geo"].finalize_sections()
 
@@ -310,6 +318,7 @@ def build_root_parser(context):
                                    r"\((?P<x_turbomole_nodename>[a-zA-Z0-9.]+)\) \: "
                                    r"TURBOMOLE (?P<program_version>[a-zA-Z0-9.]+)",
                       forwardMatch = True,
+                      startReAction=set_backends,
                       fixedStartValues={'program_name': 'turbomole', 'program_basis_set_type': 'GTOs'},
                       subMatchers = modules
                       )
