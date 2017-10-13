@@ -19,6 +19,12 @@ class Atom(object):
         self.is_pseudo = True if pseudo == "1" else False
         self.label = self.elem if self.shells > 0 else self.elem+"_1"
 
+class BasisSet(object):
+
+    def __init__(self, name, index, cartesian):
+        self.name = name
+        self.index = index
+        self.cartesian = cartesian
 
 class SystemParser(object):
 
@@ -28,6 +34,7 @@ class SystemParser(object):
         self.__backend = None
         self.__index_qm_geo = -1
         self.__atoms = list()
+        self.__basis_sets = dict()
 
     def finalize_sections(self):
         if self.__index_qm_geo >= -1:
@@ -78,4 +85,49 @@ class SystemParser(object):
                       SM("\s*center of nuclear mass", startReAction=finalize_data)
                   ],
                   startReAction=open_section
+                  )
+
+
+    def build_orbital_basis_matcher(self):
+
+        spherical = False
+
+        def set_spherical_basis(backend, groups):
+            nonlocal spherical
+            spherical = True
+
+        def add_basis_set(backend, groups):
+            index = backend.openSection("section_basis_set_atom_centered")
+            self.__basis_sets[groups[0]] = BasisSet(name=groups[4], index=index,
+                                                    cartesian=not spherical)
+            atom_number = elements.get_atom_number(groups[0].capitalize())
+            backend.addValue("basis_set_atom_centered_short_name", groups[4], index)
+            backend.addValue("basis_set_atom_number", atom_number, index)
+            if spherical:
+                backend.addValue("number_of_basis_functions_in_basis_set_atom_centered",
+                                 int(groups[3]), index)
+            else:
+                logger.warning("no basis function count information for cartesian Gaussians!")
+            backend.closeSection("section_basis_set_atom_centered", index)
+
+        # elem, num atoms, prim gauss, contracted gauss, name, contracted details, prim details
+        basis_re = r"\s*([A-z]+)\s+([0-9]+)\s+" \
+                   r"([0-9]+)\s+([0-9]+)\s+" \
+                   r"([A-z0-9-]+)\s+" \
+                   r"\[((?:[0-9]+[spdfghij])+)\|((?:[0-9]+[spdfghij])+)\]"
+        basis = SM(basis_re, repeats=True, name="basis assignment", startReAction=add_basis_set)
+
+        gauss_type_spherical = SM(r"\s*we will work with the 1s 3p 5d 7f 9g ... basis set",
+                                  name="spherical Gaussians",
+                                  subMatchers=[
+                                      SM(r"\s*...i.e. with spherical basis functions...",
+                                         name="spherical Gaussians",
+                                         required=True)
+                                  ],
+                                  startReAction=set_spherical_basis
+                                  )
+
+        return SM(name="Orbital Basis Set",
+                  startReStr=r"\s*\|\s*basis set information\s",
+                  subMatchers=[gauss_type_spherical, basis]
                   )

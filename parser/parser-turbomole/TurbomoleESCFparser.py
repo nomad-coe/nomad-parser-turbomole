@@ -15,7 +15,8 @@ def build_escf_parser(context):
               subMatchers=[
                   common.build_credits_matcher("e s c f"),
                   context["geo"].build_qm_geometry_matcher(),
-                  common.build_controlinout_matcher(),
+                  context["geo"].build_orbital_basis_matcher(),
+                  # common.build_controlinout_matcher(),
                   build_gw_matcher(context)
               ]
               )
