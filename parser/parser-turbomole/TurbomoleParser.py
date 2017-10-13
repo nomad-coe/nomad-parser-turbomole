@@ -11,6 +11,7 @@ from TurbomoleCommon import get_metaInfo
 import logging, os, re, sys
 from nomadcore.unit_conversion.unit_conversion import convert_unit_function
 import TurbomoleCommon as common
+from SystemParser import SystemParser
 from TurbomoleESCFparser import build_escf_parser
 
 eV2J = convert_unit_function("eV","J")
@@ -21,10 +22,20 @@ eV2J = convert_unit_function("eV","J")
 
 logger = logging.getLogger("nomad.turbomoleParser")
 
+
 class TurbomoleParserContext(object):
 
     def __init__(self):
-        self.functionals                       = []
+        self.__data = dict()
+        self.functionals = []
+
+    def __getitem__(self, item):
+        return self.__data[item]
+
+    def __setitem__(self, key, value):
+        if key in self.__data:
+            raise Exception("sub data storage '%s' already declared!" % key)
+        self.__data[key] = value
 
     def initialize_values(self):
         """Initializes the values of certain variables.
@@ -197,7 +208,7 @@ class TurbomoleParserContext(object):
 #################[2] MAIN PARSER STARTS HERE  ###############
 #############################################################
 
-def build_root_parser():
+def build_root_parser(context):
     """Builds the SimpleMatcher to parse the main file of turbomole.
     Matches for subsections of the output file are generated in dedicated
     functions below.
@@ -205,6 +216,13 @@ def build_root_parser():
     Returns:
        SimpleMatcher that parses main file of Turbomole.
     """
+
+    def finalize_system_data(backend, groups):
+        context["geo"].finalize_sections()
+
+    # shared subparsers created here are automatically stored in the context
+    SystemParser(context)
+
     generic = SM(name = 'NewRun',
                  #matches only those subprograms without dedicated parser
                  startReStr = r"\s*(?:aoforce|cosmoprep|egrad|evib|frog|gradsammel|"
@@ -215,7 +233,7 @@ def build_root_parser():
                               r"hessruecker|mdprep|mpshift|rdgrad|ricctools|rimp2prep|"
                               r"sammler|thirdruecker|uff)\s*"
                               r"\([a-zA-Z0-9.]+\) \: TURBOMOLE [a-zA-Z0-9.]+",
-                 endReStr = r"\s*\*\*\*\*\s",
+                 # endReStr = r"\s*\*\*\*\*\s",
                  repeats = False,
                  #sections = ['section_single_configuration_calculation'],
                  subMatchers = [
@@ -225,7 +243,7 @@ def build_root_parser():
                          sections = ['section_method'],
                          subMatchers = [
                              # parse geometry writeout of aims
-                             common.build_geometry_matcher(),
+                             context["geo"].build_qm_geometry_matcher(),
                              common.build_controlinout_matcher()
                          ]),
 
@@ -233,7 +251,7 @@ def build_root_parser():
                      SM (name = 'SingleConfigurationCalculation',
                          #startReStr = r"\s*start vectors will be provided from a core hamilton",
                          startReStr = r"\s*1e\-*integrals will be neglected if expon",
-                         #startReStr = r"\s*\|",
+                         startReAction=finalize_system_data,
                          sections = ['section_single_configuration_calculation'],
                          repeats = True,
                          subMatchers = [
@@ -272,7 +290,7 @@ def build_root_parser():
                              build_total_energy_perturbation_theory_matcher()
                          ])
                  ])
-    modules = [build_escf_parser(), generic, build_relaxation_matcher()]
+    modules = [build_escf_parser(context), generic, build_relaxation_matcher()]
 
     return SM (name = 'Root',
                startReStr = "",
@@ -464,28 +482,28 @@ def get_cachingLevelForMetaName(metaInfoEnv):
     return cachingLevelForMetaName
 
 
-
-
 def main():
     """Main function.
 
     Set up everything for the parsing of the turbomole main file and run the parsing.
     """
     # get main file description
-    TurbomoleMainFileSimpleMatcher = build_root_parser()
+    context = TurbomoleParserContext()
     # loading metadata from nomad-meta-info/meta_info/nomad_meta_info/turbomole.nomadmetainfo.json
-    metaInfoPath = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../../nomad-meta-info/meta_info/nomad_meta_info/turbomole.nomadmetainfo.json"))
+    path = "../../../../nomad-meta-info/meta_info/nomad_meta_info/turbomole.nomadmetainfo.json"
+    metaInfoPath = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), path))
     metaInfoEnv = get_metaInfo(metaInfoPath)
     # set parser info
-    parserInfo = {'name':'turbomole-parser', 'version': '1.0'}
+    parserInfo = {'name': 'turbomole-parser', 'version': '1.0'}
     # get caching level for metadata
     cachingLevelForMetaName = get_cachingLevelForMetaName(metaInfoEnv)
     # start parsing
-    mainFunction(mainFileDescription = TurbomoleMainFileSimpleMatcher,
-                 metaInfoEnv = metaInfoEnv,
-                 parserInfo = parserInfo,
-                 cachingLevelForMetaName = cachingLevelForMetaName,
-                 superContext = TurbomoleParserContext())
+    mainFunction(mainFileDescription=build_root_parser(context),
+                 metaInfoEnv=metaInfoEnv,
+                 parserInfo=parserInfo,
+                 cachingLevelForMetaName=cachingLevelForMetaName,
+                 superContext=context)
+
+
 if __name__ == "__main__":
     main()
-

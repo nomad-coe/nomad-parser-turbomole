@@ -4,23 +4,24 @@ import logging
 import re
 from nomadcore.simple_parser import SimpleMatcher as SM
 import TurbomoleCommon as common
+from SystemParser import SystemParser
 
 logger = logging.getLogger("nomad.turbomoleParser")
 
 
-def build_escf_parser():
+def build_escf_parser(context):
     return SM(name="ESCF module",
               startReStr=r"\s*escf\s*\([a-zA-Z0-9.]+\)\s+\: TURBOMOLE [a-zA-Z0-9.]+",
               subMatchers=[
                   common.build_credits_matcher("e s c f"),
-                  common.build_geometry_matcher(),
+                  context["geo"].build_qm_geometry_matcher(),
                   common.build_controlinout_matcher(),
-                  build_gw_matcher()
+                  build_gw_matcher(context)
               ]
               )
 
 
-def build_gw_matcher():
+def build_gw_matcher(context):
     def get_gw_approximation(backend, groups):
         types = groups[0]
         regex = re.compile(r"\s*(?P<index>[0-9]+)\s*:\s*(?P<name>[^\s:]+)")
@@ -33,10 +34,14 @@ def build_gw_matcher():
         backend.addValue("calculation_method_kind", "perturbative")
         backend.addValue("x_turbomole_gw_approximation", approximations[groups[1]])
 
+    def finalize_system_data(backend, groups):
+        context["geo"].finalize_sections()
+
     params = SM(name="GW parameters",
                 startReStr="\s*par[ae]meters:",  # typo in Turbomole 6.6 output
                 sections=["section_method"],
                 fixedStartValues={"number_of_eigenvalues_kpoints": 1},  # no periodic GW available
+                startReAction=finalize_system_data,
                 subMatchers=[
                     SM(r"\s*number of levels to calculate\s+(?P<number_of_eigenvalues>[0-9]+)",
                        name="num states"),
