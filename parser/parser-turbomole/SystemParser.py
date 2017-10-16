@@ -16,15 +16,20 @@ class Atom(object):
         self.charge = float(charge)
         self.shells = int(shells) if shells else -1
         self.isotope = int(isotope)
-        self.is_pseudo = True if pseudo == "1" else False
+        if pseudo:
+            self.is_pseudo = True if pseudo == "1" else False
+        else:
+            self.is_pseudo = None  # effective core potential not specified
         self.label = self.elem if self.shells > 0 else self.elem+"_1"
+
 
 class BasisSet(object):
 
-    def __init__(self, name, index, cartesian):
+    def __init__(self, name, index, cartesian, num_atoms):
         self.name = name
         self.index = index
         self.cartesian = cartesian
+        self.num_atoms = int(num_atoms)
 
 class SystemParser(object):
 
@@ -47,10 +52,36 @@ class SystemParser(object):
     def write_basis_set_mapping(self):
         """the caller is responsible for opening the enclosing
         section_single_configuration_calculation"""
+        showed_warning = False
         index = self.__backend.openSection("section_basis_set")
         mapping = np.ndarray(shape=(len(self.__atoms),), dtype=int)
+        total_basis_atoms = sum(x.num_atoms for x in self.__basis_sets.values())
+        index_pseudo = None
+        if total_basis_atoms < len(self.__atoms):
+            # some atoms have no basis set assigned, need to create an empty set
+            index_pseudo = self.__backend.openSection("section_basis_set_atom_centered")
+            self.__backend.addValue("basis_set_atom_centered_short_name", "empty", index_pseudo)
+            self.__backend.addValue("basis_set_atom_number", 0, index_pseudo)
+            self.__backend.addValue("number_of_basis_functions_in_basis_set_atom_centered", 0,
+                                    index_pseudo)
+            self.__backend.closeSection("section_basis_set_atom_centered", index_pseudo)
+        kind_counts = dict()
+        # TODO: if the geometry data doesn't list shells, a simple ordering assumption is used...
         for i, atom in enumerate(self.__atoms):
-            mapping[i] = self.__basis_sets[atom.elem].index
+            if atom.shells == 0:
+                mapping[i] = index_pseudo
+            elif atom.elem in kind_counts:
+                if kind_counts[atom.elem] >= self.__basis_sets[atom.elem].num_atoms:
+                    if not showed_warning:
+                        logger.warning("guessing basis set to atom map from ordering!")
+                        showed_warning = True
+                    mapping[i] = index_pseudo
+                else:
+                    kind_counts[atom.elem] = kind_counts[atom.elem] + 1
+                    mapping[i] = self.__basis_sets[atom.elem].index
+            else:
+                kind_counts[atom.elem] = 1
+                mapping[i] = self.__basis_sets[atom.elem].index
         self.__backend.addArrayValues("mapping_section_basis_set_atom_centered", mapping)
         self.__backend.closeSection("section_basis_set", index)
         return index
@@ -114,7 +145,8 @@ class SystemParser(object):
             index = backend.openSection("section_basis_set_atom_centered")
             key = groups[0].capitalize()
             self.__basis_sets[key] = BasisSet(name=groups[4], index=index,
-                                              cartesian=not LocalBasisData.spherical)
+                                              cartesian=not LocalBasisData.spherical,
+                                              num_atoms=groups[1])
             atom_number = elements.get_atom_number(groups[0].capitalize())
             backend.addValue("basis_set_atom_centered_short_name", groups[4], index)
             backend.addValue("basis_set_atom_number", atom_number, index)
