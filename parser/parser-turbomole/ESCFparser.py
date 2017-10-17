@@ -3,17 +3,27 @@
 import logging
 import re
 from nomadcore.simple_parser import SimpleMatcher as SM
-import TurbomoleCommon as common
-from SystemParser import SystemParser
 
 logger = logging.getLogger("nomad.turbomoleParser")
 
 
 def build_escf_parser(context):
+    references = SM(r"\s{5,}[^+ ]+",
+                    name="references",
+                    coverageIgnore=True,
+                    repeats=True,
+                    )
+    header = SM(name="Credits",
+                startReStr=r"\s*quantum chemistry group",
+                coverageIgnore=True,
+                subMatchers=[references],
+                endReStr=r"\s*\+-+\+"
+                )
+
     return SM(name="ESCF module",
-              startReStr=r"\s*escf\s*\([a-zA-Z0-9.]+\)\s+\: TURBOMOLE [a-zA-Z0-9.]+",
+              startReStr=r"\s*e s c f",
               subMatchers=[
-                  common.build_credits_matcher("e s c f"),
+                  header,
                   context["geo"].build_qm_geometry_matcher(),
                   context["geo"].build_orbital_basis_matcher(),
                   # common.build_controlinout_matcher(),

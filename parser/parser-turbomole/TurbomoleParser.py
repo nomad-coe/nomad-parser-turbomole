@@ -318,10 +318,10 @@ def build_root_parser(context):
                                    r"sammler|thirdruecker|uff)\s*"
                                    r"\((?P<x_turbomole_nodename>[a-zA-Z0-9.]+)\) \: "
                                    r"TURBOMOLE (?P<program_version>[a-zA-Z0-9.]+)",
-                      forwardMatch = True,
+                      forwardMatch=True,  # necessary to match runs without dedicated subparser
                       startReAction=set_backends,
                       fixedStartValues={'program_name': 'turbomole', 'program_basis_set_type': 'GTOs'},
-                      subMatchers = modules
+                      subMatchers=modules
                       )
                ]
                )
