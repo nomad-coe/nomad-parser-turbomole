@@ -45,10 +45,11 @@ class SystemParser(object):
         self.__backend = backend
 
     def finalize_sections(self):
+        index = self.__index_qm_geo
         if self.__index_qm_geo >= -1:
             self.__backend.closeSection("section_system", self.__index_qm_geo)
             self.__index_qm_geo = -2
-        return {"qm-geo": self.__index_qm_geo}
+        return {"qm-geo": index}
 
     def write_basis_set_mapping(self):
         """the caller is responsible for opening the enclosing

@@ -28,6 +28,7 @@ class TurbomoleParserContext(object):
     def __init__(self):
         self.__data = dict()
         self.functionals = []
+        self.generic = False
 
     def __getitem__(self, item):
         return self.__data[item]
@@ -196,8 +197,9 @@ class TurbomoleParserContext(object):
             else:
                 self.geoConvergence = False
 
-        backend.addValue('single_configuration_to_calculation_method_ref', self.secMethodIndex)
-        backend.addValue('single_configuration_calculation_to_system_ref', self.secSystemDescriptionIndex)
+        if self.generic:
+            backend.addValue('single_configuration_to_calculation_method_ref', self.secMethodIndex)
+            backend.addValue('single_configuration_calculation_to_system_ref', self.secSystemDescriptionIndex)
 
     def setStartingPointCalculation(self, parser):
         backend = parser.backend
@@ -232,6 +234,9 @@ def build_root_parser(context):
     # shared subparsers created here are automatically stored in the context
     SystemParser(context)
 
+    def set_generic(backend, groups):
+        context.generic = True
+
     generic = SM(name = 'NewRun',
                  #matches only those subprograms without dedicated parser
                  startReStr = r"\s*(?:aoforce|cosmoprep|egrad|evib|frog|gradsammel|"
@@ -243,6 +248,7 @@ def build_root_parser(context):
                               r"sammler|thirdruecker|uff)\s*"
                               r"\([a-zA-Z0-9.]+\) \: TURBOMOLE [a-zA-Z0-9.]+",
                  # endReStr = r"\s*\*\*\*\*\s",
+                 startReAction=set_generic,
                  repeats = False,
                  #sections = ['section_single_configuration_calculation'],
                  subMatchers = [
