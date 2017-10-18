@@ -13,6 +13,7 @@ from nomadcore.unit_conversion.unit_conversion import convert_unit_function
 import TurbomoleCommon as common
 from SystemParser import SystemParser
 from ESCFparser import ESCFparser
+from DSCFparser import DSCFparser
 
 eV2J = convert_unit_function("eV","J")
 
@@ -243,7 +244,7 @@ def build_root_parser(context):
                               r"hesssammel|moloch|odft|relax|ridft|rirpa|sdg|thirdsammel|"
                               r"vibration|atbandbta|define|eigerf|fdetools|grad|haga|"
                               r"intense|mpgrad|proper|ricc2|rimp2|ruecker|statpt|tm2molden|"
-                              r"woelfling|bsseenergy|dscf|freeh|gradruecker|"
+                              r"woelfling|bsseenergy|freeh|gradruecker|"
                               r"hessruecker|mdprep|mpshift|rdgrad|ricctools|rimp2prep|"
                               r"sammler|thirdruecker|uff)\s*"
                               r"\([a-zA-Z0-9.]+\) \: TURBOMOLE [a-zA-Z0-9.]+",
@@ -308,6 +309,7 @@ def build_root_parser(context):
                  ])
     modules = [
         ESCFparser(context).build_parser(),
+        DSCFparser(context).build_parser(),
         generic,
         build_relaxation_matcher()
     ]
