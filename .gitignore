@@ -8,6 +8,7 @@ syntax: glob
 *.json
 *.results
 *.meta
+secret_example
 #*.off
 *.old
 *.pyc
