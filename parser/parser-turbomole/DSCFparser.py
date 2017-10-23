@@ -33,16 +33,18 @@ class DSCFparser(object):
 
         return SM(name="DSCF module",
                   startReStr=r"\s*d s c f - program",
+                  sections=["section_single_configuration_calculation"],
                   subMatchers=[
                       header,
                       self.__context["geo"].build_qm_geometry_matcher(),
                       self.__context["geo"].build_orbital_basis_matcher(),
                       # TODO: read optional DFT functional specification
-                      self.__build_scf_matcher()
+                      self.__build_scf_cycle_matcher(),
+                      self.__build_total_energy_matcher()
                   ]
                   )
 
-    def __build_scf_matcher(self):
+    def __build_scf_cycle_matcher(self):
 
         def finalize_system_data(backend, groups):
             """close the system-related sections, add HF method if no DFT usage was specified and
@@ -92,14 +94,12 @@ class DSCFparser(object):
                                   ),
                                total_energy_matcher,
                                xc_energy_matcher
-                           ],
-                           endReStr="\s*convergence criteria satisfied after\s+"
-                                    "(?P<number_of_scf_iterations>[0-9]+)\s+iterations"
+                           ]
                            )
 
         return SM(r"\s*STARTING INTEGRAL EVALUATION FOR 1st SCF ITERATION",
                   name="HF/DFT SCF",
-                  sections=["section_single_configuration_calculation"],
+                  required=True,
                   subMatchers=[
                       SM("\s*time elapsed for pre-SCF steps : cpu\s+([0-9]+\.[0-9]+)\s+sec",
                          name="SCF preparation",
@@ -112,3 +112,34 @@ class DSCFparser(object):
                   startReAction=finalize_system_data
                   )
 
+    def __build_total_energy_matcher(self):
+        def set_current_energy(backend, groups):
+            backend.addRealValue("energy_current", float(groups[0]), unit="hartree")
+
+        energy_total = SM(r"\s*\|\s*total energy\s*=\s*(?P<energy_total__hartree>"
+                          +RE_FLOAT+")\s*\|",
+                          name = "total energy",
+                          required=True,
+                          startReAction=set_current_energy
+                          )
+        energy_kinetic = SM(r"\s*:\s*kinetic energy\s*=\s*(?P<electronic_kinetic_energy__hartree>"
+                            + RE_FLOAT+")\s*:",
+                            name="kinetic energy",
+                            required=True
+                            )
+        energy_potential = SM(r"\s*:\s*potential energy\s*=\s*"
+                              r"(?P<x_turbomole_potential_energy_final__hartree>"+RE_FLOAT+")\s*:",
+                              name="potential energy",
+                              required=True
+                              )
+
+        return SM(r"\s*convergence criteria satisfied after\s+"
+                  r"(?P<number_of_scf_iterations>[0-9]+)\s+iterations",
+                  name="SCF end",
+                  required=True,
+                  subMatchers=[
+                      energy_total,
+                      energy_kinetic,
+                      energy_potential
+                  ]
+                  )
