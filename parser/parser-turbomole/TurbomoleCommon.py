@@ -10,6 +10,8 @@ logger = logging.getLogger("nomad.turbomoleParser")
 # by more than one parser.
 ############################################################
 
+RE_FLOAT = r"(?:[+-]?[0-9]+.?[0-9]*(?:[DEde][+-]?[0-9]+|))"
+
 def build_controlinout_matcher():
     return SM (name = 'ControlInOut',
                startReStr = r"\s*\|\s*basis set information\s",

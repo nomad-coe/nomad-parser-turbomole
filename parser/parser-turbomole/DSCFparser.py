@@ -3,7 +3,7 @@
 import logging
 import re
 from nomadcore.simple_parser import SimpleMatcher as SM
-import TurbomoleCommon as Common
+from TurbomoleCommon import RE_FLOAT
 
 logger = logging.getLogger("nomad.turbomoleParser")
 
@@ -60,9 +60,41 @@ class DSCFparser(object):
             self.__backend.addValue("single_configuration_calculation_to_system_ref",
                                     self.__index_map["qm-geo"])
 
+        class PreviousCycle(object):
+            energy = None
+
+        def compute_energy_difference(backend, groups):
+            backend.addRealValue("energy_total_scf_iteration", float(groups[0]), unit="hartree")
+            if PreviousCycle.energy:
+                # TODO: doublecheck we're dealing with Hartrees here
+                backend.addRealValue("energy_change_scf_iteration",
+                                 float(groups[0]) - PreviousCycle.energy, unit="hartree")
+            PreviousCycle.energy = float(groups[0])
+
+        total_energy_matcher = SM(r"\s*[0-9]+\s+("+RE_FLOAT+")\s+("+RE_FLOAT+")\s+("+RE_FLOAT+")"
+                                  "\s+("+RE_FLOAT+")\s+("+RE_FLOAT+")",
+                                  startReAction=compute_energy_difference,
+                                  required=True
+                                  )
+        xc_energy_matcher = SM(r"\s*Exc =\s*(?P<energy_XC_scf_iteration__hartree>"+RE_FLOAT+")"
+                              r"\s+N =\s*("+RE_FLOAT+")",
+                              )
+
         scf_iteration = SM("\s*current damping\s*:\s*[+-]?[0-9]+\.?[0-9]*",
                            name="SCF iteration",
                            repeats=True,
+                           sections=["section_scf_iteration"],
+                           subMatchers=[
+                               SM("\s*ITERATION\s+ENERGY\s+1e-ENERGY\s+2e-ENERGY\s+"
+                                  "NORM\[dD\(SAO\)\]\s+TOL",
+                                  name="SCF iteration",
+                                  required=True
+                                  ),
+                               total_energy_matcher,
+                               xc_energy_matcher
+                           ],
+                           endReStr="\s*convergence criteria satisfied after\s+"
+                                    "(?P<number_of_scf_iterations>[0-9]+)\s+iterations"
                            )
 
         return SM(r"\s*STARTING INTEGRAL EVALUATION FOR 1st SCF ITERATION",
