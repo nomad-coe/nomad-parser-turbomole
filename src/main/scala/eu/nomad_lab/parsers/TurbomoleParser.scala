@@ -42,6 +42,7 @@ object TurbomoleParser extends SimpleExternalParserGenerator(
   cmd = Seq(DefaultPythonInterpreter.pythonExe(), "${envDir}/parsers/turbomole/parser/parser-turbomole/TurbomoleParser.py",
     "--uri", "${mainFileUri}", "${mainFilePath}"),
   resList = Seq(
+    "parser-turbomole/OrbitalParser.py",
     "parser-turbomole/SystemParser.py",
     "parser-turbomole/DSCFparser.py",
     "parser-turbomole/ESCFparser.py",

@@ -40,6 +40,7 @@ class DSCFparser(object):
                       self.__build_uhf_matcher(),
                       self.__context["geo"].build_qm_geometry_matcher(),
                       self.__context["geo"].build_orbital_basis_matcher(),
+                      self.__context["orbitals"].build_state_matcher(),
                       # TODO: read optional DFT functional specification
                       self.__build_scf_cycle_matcher(),
                       self.__build_total_energy_matcher()
