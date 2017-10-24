@@ -11,7 +11,6 @@ class ESCFparser(object):
     def __init__(self, context, key="escf"):
         context[key] = self
         self.__context = context
-        self.__index_map = dict()
         self.__backend = None
 
     def set_backend(self, backend):
@@ -54,13 +53,12 @@ class ESCFparser(object):
             backend.addValue("x_turbomole_gw_approximation", approximations[groups[1]])
 
         def finalize_system_data(backend, groups):
-            self.__index_map.update(self.__context["geo"].finalize_sections())
-            self.__index_map["orbital-basis"] = self.__context["geo"].write_basis_set_mapping()
-            self.__index_map["method"] = backend.get_latest_section("section_method").gIndex
+            self.__context["geo"].finalize_sections()
+            self.__context["geo"].write_basis_set_mapping()
             self.__backend.addValue("single_configuration_to_calculation_method_ref",
-                                    self.__index_map["method"])
+                                    backend.get_latest_section("section_method").gIndex)
             self.__backend.addValue("single_configuration_calculation_to_system_ref",
-                                    self.__index_map["qm-geo"])
+                                    self.__context["geo"].index_qm_geo())
 
         params = SM(name="GW parameters",
                     startReStr="\s*par[ae]meters:",  # typo in Turbomole 6.6 output

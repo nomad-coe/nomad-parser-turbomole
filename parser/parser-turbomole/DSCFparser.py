@@ -12,7 +12,6 @@ class DSCFparser(object):
     def __init__(self, context, key="dscf"):
         context[key] = self
         self.__context = context
-        self.__index_map = dict()
         self.__backend = None
 
     def set_backend(self, backend):
@@ -51,18 +50,18 @@ class DSCFparser(object):
         def finalize_system_data(backend, groups):
             """close the system-related sections, add HF method if no DFT usage was specified and
             link the just opened single_configuration section to the method and system sections"""
-            self.__index_map.update(self.__context["geo"].finalize_sections())
+            self.__context["geo"].finalize_sections()
             self.__context["geo"].write_basis_set_mapping()
 
-            if "method" not in self.__index_map:
-                self.__index_map["method"] = self.__backend.openSection("section_method")
-                self.__backend.addValue("electronic_structure_method", "HF")
-                self.__backend.addValue("calculation_method_kind", "absolute")
-                self.__backend.closeSection("section_method", self.__index_map["method"])
-            self.__backend.addValue("single_configuration_to_calculation_method_ref",
-                                    self.__index_map["method"])
+            # if "method" not in self.__index_map:
+            #     self.__index_map["method"] = self.__backend.openSection("section_method")
+            #     self.__backend.addValue("electronic_structure_method", "HF")
+            #     self.__backend.addValue("calculation_method_kind", "absolute")
+            #     self.__backend.closeSection("section_method", self.__index_map["method"])
+            # self.__backend.addValue("single_configuration_to_calculation_method_ref",
+            #                         self.__index_map["method"])
             self.__backend.addValue("single_configuration_calculation_to_system_ref",
-                                    self.__index_map["qm-geo"])
+                                    self.__context["geo"].index_qm_geo())
 
         class PreviousCycle(object):
             energy = None

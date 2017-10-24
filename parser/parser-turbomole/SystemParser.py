@@ -39,24 +39,31 @@ class SystemParser(object):
         self.__context = context
         self.__backend = None
         self.__index_qm_geo = -1
+        self.__index_basis_set = -1
         self.__atoms = list()
         self.__basis_sets = dict()
 
     def set_backend(self, backend):
         self.__backend = backend
 
+    # getter methods
+
+    def index_qm_geo(self):
+        return self.__index_qm_geo
+
+    def index_basis_set(self):
+        return self.__index_basis_set
+
+    # match builders
+
     def finalize_sections(self):
-        index = self.__index_qm_geo
-        if self.__index_qm_geo >= -1:
-            self.__backend.closeSection("section_system", self.__index_qm_geo)
-            self.__index_qm_geo = -2
-        return {"qm-geo": index}
+        self.__backend.closeSection("section_system", self.__index_qm_geo)
 
     def write_basis_set_mapping(self):
         """the caller is responsible for opening the enclosing
         section_single_configuration_calculation"""
         showed_warning = False
-        index = self.__backend.openSection("section_basis_set")
+        self.__index_basis_set = self.__backend.openSection("section_basis_set")
         mapping = np.ndarray(shape=(len(self.__atoms),), dtype=int)
         total_basis_atoms = sum(x.num_atoms for x in self.__basis_sets.values())
         index_pseudo = None
@@ -86,8 +93,7 @@ class SystemParser(object):
                 kind_counts[atom.elem] = 1
                 mapping[i] = self.__basis_sets[atom.elem].index
         self.__backend.addArrayValues("mapping_section_basis_set_atom_centered", mapping)
-        self.__backend.closeSection("section_basis_set", index)
-        return index
+        self.__backend.closeSection("section_basis_set", self.__index_basis_set)
 
     def build_qm_geometry_matcher(self):
 

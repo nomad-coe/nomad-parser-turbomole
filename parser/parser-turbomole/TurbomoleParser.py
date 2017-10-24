@@ -274,7 +274,7 @@ def build_root_parser(context):
                          startReStr = r"\s*1e\-*integrals will be neglected if expon",
                          startReAction=finalize_system_data,
                          sections = ['section_single_configuration_calculation'],
-                         repeats = True,
+                         # repeats = True,
                          subMatchers = [
                              SM (name = 'PeriodicEmbeddingSettings',
                                  startReStr = r"\s*\|\s*EMBEDDING IN PERIODIC POINT CHARGES\s*\|",
