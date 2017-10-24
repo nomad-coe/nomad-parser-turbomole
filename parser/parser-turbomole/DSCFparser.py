@@ -39,7 +39,7 @@ class DSCFparser(object):
                       self.__context["geo"].build_qm_geometry_matcher(),
                       self.__context["geo"].build_orbital_basis_matcher(),
                       self.__context["orbitals"].build_state_matcher(),
-                      # TODO: read optional DFT functional specification
+                      self.__context["method"].build_dft_functional_matcher(),
                       self.__build_scf_cycle_matcher(),
                       self.__build_total_energy_matcher()
                   ]
@@ -52,16 +52,13 @@ class DSCFparser(object):
             link the just opened single_configuration section to the method and system sections"""
             self.__context["geo"].finalize_sections()
             self.__context["geo"].write_basis_set_mapping()
-
-            # if "method" not in self.__index_map:
-            #     self.__index_map["method"] = self.__backend.openSection("section_method")
-            #     self.__backend.addValue("electronic_structure_method", "HF")
-            #     self.__backend.addValue("calculation_method_kind", "absolute")
-            #     self.__backend.closeSection("section_method", self.__index_map["method"])
-            # self.__backend.addValue("single_configuration_to_calculation_method_ref",
-            #                         self.__index_map["method"])
+            if self.__context["method"].index_method() == -1:
+                self.__context["method"].add_default_functional()
+            self.__backend.addValue("single_configuration_to_calculation_method_ref",
+                                    self.__context["method"].index_method())
             self.__backend.addValue("single_configuration_calculation_to_system_ref",
                                     self.__context["geo"].index_qm_geo())
+            self.__context["method"].close_method_section()
 
         class PreviousCycle(object):
             energy = None
