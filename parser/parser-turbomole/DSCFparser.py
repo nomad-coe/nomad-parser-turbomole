@@ -14,6 +14,7 @@ class DSCFparser(object):
         self.__context = context
         self.__index_map = dict()
         self.__backend = None
+        self.__spin_polarized = False
 
     def set_backend(self, backend):
         self.__backend = backend
@@ -36,12 +37,23 @@ class DSCFparser(object):
                   sections=["section_single_configuration_calculation"],
                   subMatchers=[
                       header,
+                      self.__build_uhf_matcher(),
                       self.__context["geo"].build_qm_geometry_matcher(),
                       self.__context["geo"].build_orbital_basis_matcher(),
                       # TODO: read optional DFT functional specification
                       self.__build_scf_cycle_matcher(),
                       self.__build_total_energy_matcher()
                   ]
+                  )
+
+    def __build_uhf_matcher(self):
+
+        def set_spin_polarized(backend, groups):
+            self.__spin_polarized = True
+
+        return SM(r"\s*UHF mode switched on !",
+                  name="UHF switch",
+                  startReAction=set_spin_polarized
                   )
 
     def __build_scf_cycle_matcher(self):
@@ -79,8 +91,8 @@ class DSCFparser(object):
                                   required=True
                                   )
         xc_energy_matcher = SM(r"\s*Exc =\s*(?P<energy_XC_scf_iteration__hartree>"+RE_FLOAT+")"
-                              r"\s+N =\s*("+RE_FLOAT+")",
-                              )
+                               r"\s+N =\s*("+RE_FLOAT+")",
+                               )
 
         scf_iteration = SM("\s*current damping\s*:\s*[+-]?[0-9]+\.?[0-9]*",
                            name="SCF iteration",

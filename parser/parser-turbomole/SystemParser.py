@@ -31,6 +31,7 @@ class BasisSet(object):
         self.cartesian = cartesian
         self.num_atoms = int(num_atoms)
 
+
 class SystemParser(object):
 
     def __init__(self, context, key="geo"):
@@ -132,7 +133,6 @@ class SystemParser(object):
                   ],
                   startReAction=open_section
                   )
-
 
     def build_orbital_basis_matcher(self):
 
