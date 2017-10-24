@@ -48,7 +48,8 @@ class MethodParser(object):
     # matcher generation methods
 
     def close_method_section(self):
-        self.__backend.closeSection("section_method", self.__index_method)
+        if self.__index_method != -1:
+            self.__backend.closeSection("section_method", self.__index_method)
 
     def add_default_functional(self):
         self.__index_method = self.__backend.openSection("section_method")

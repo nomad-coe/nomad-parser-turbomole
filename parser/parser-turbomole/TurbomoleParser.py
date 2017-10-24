@@ -119,58 +119,9 @@ class TurbomoleParserContext(object):
     # todo: maybe we can move the force to onClose_section_single_configuration_calculation in the future. 
     ###################################################################
 
-    def onClose_x_turbomole_section_functionals(self, backend, gIndex, section):
-        functional_names = section["x_turbomole_XC_functional_type"]
-
-        #TODO: TurboMole can also reload molecular orbitals from a preceding SCF (with unknown XC)
-        if functional_names == None: functional = "HF" #default method is Hartree-Fock
-        else: functional = functional_names[-1]
-
-        if functional:
-            functionalMap = {
-                "HF":     ["HF_X"],
-                "S-VWN":  ["LDA_X", "LDA_C_VWN_3"],
-                "PWLDA":  ["LDA_X", "LDA_C_PW"],
-                "B-VWN":  ["GGA_X_B88", "LDA_C_VWN"],
-                "B-LYP":  ["GGA_X_B88", "GGA_C_LYP"],
-                "B-P":    ["LDA_X", "GGA_X_B88", "LDA_C_VWN", "GGA_C_P86"],
-                "B-P86":  ["LDA_X", "GGA_X_B88", "LDA_C_VWN", "GGA_C_P86"],
-                "PBE":    ["GGA_X_PBE", "GGA_C_PBE"],
-                "TPSS":   ["LDA_X", "MGGA_X_TPSS", "LDA_C_PW", "MGGA_C_TPSS"],
-                "M06":    ["MGGA_X_M06", "MGGA_C_M06"],
-                "BH-LYP": ["HYB_GGA_XC_BHANDHLYP"],
-                "B3-LYP": ["HYB_GGA_XC_B3LYP"],
-                "PBE0":   ["HYB_GGA_XC_PBEH"],
-                "TPSSh":  ["HYB_MGGA_XC_TPSSH"],
-                "M06-2X": ["MGGA_X_M06_2X", "MGGA_C_M06_2X"],
-                "B2-PLYP":["HYB_GGA_XC_B2PLYP"]
-            }
-        nomadNames = functionalMap.get(functional)
-        if not nomadNames:
-            raise Exception("Unhandled xc functional %s found" % functional)
-        for name in nomadNames:
-            s = backend.openSection("section_XC_functionals")
-            backend.addValue('XC_functional_name', name)
-            backend.closeSection("section_XC_functionals", s)
-
     def onOpen_section_system(self, backend, gIndex, section):
         # keep track of the latest system description section
         self.secSystemDescriptionIndex = gIndex
-
-    #TODO: figure out why DFT was set as a default here (was e.g. done for GW calculations)
-    # def onClose_section_method(self, backend, gIndex, section):
-    #     """Trigger called when section_method is closed.
-    #     """
-        # method_name = section['electronic_structure_method']
-        # if method_name is None:
-        #     match = 'DFT'
-        #     backend.addValue('electronic_structure_method', match)
-
-            #smear_type = section['smearing_kind']
-            #if smear_type is None:
-            #        value = ''
-            #        backend.addValue('smearing_kind', value)
-
 
     def onClose_x_turbomole_section_eigenvalues_list(self, backend, gIndex, section):
         irrep_name = section['x_turbomole_irreducible_representation_state_str']
@@ -201,8 +152,12 @@ class TurbomoleParserContext(object):
                 self.geoConvergence = False
 
         if self.generic:
-            backend.addValue('single_configuration_to_calculation_method_ref', self.secMethodIndex)
-            backend.addValue('single_configuration_calculation_to_system_ref', self.secSystemDescriptionIndex)
+            if self.secMethodIndex:
+                backend.addValue('single_configuration_to_calculation_method_ref',
+                                 self.secMethodIndex)
+            if self.secSystemDescriptionIndex:
+                backend.addValue('single_configuration_calculation_to_system_ref',
+                                 self.secSystemDescriptionIndex)
 
     def setStartingPointCalculation(self, parser):
         backend = parser.backend
@@ -233,6 +188,7 @@ def build_root_parser(context):
     def finalize_system_data(backend, groups):
         context["geo"].finalize_sections()
         context["geo"].write_basis_set_mapping()
+        context["method"].close_method_section()
 
     # shared subparsers created here are automatically stored in the context
     SystemParser(context)
@@ -242,75 +198,65 @@ def build_root_parser(context):
     def set_generic(backend, groups):
         context.generic = True
 
-    generic = SM(name = 'NewRun',
-                 #matches only those subprograms without dedicated parser
-                 startReStr = r"\s*(?:aoforce|cosmoprep|egrad|evib|frog|gradsammel|"
-                              r"hesssammel|moloch|odft|relax|ridft|rirpa|sdg|thirdsammel|"
-                              r"vibration|atbandbta|define|eigerf|fdetools|grad|haga|"
-                              r"intense|mpgrad|proper|ricc2|rimp2|ruecker|statpt|tm2molden|"
-                              r"woelfling|bsseenergy|freeh|gradruecker|"
-                              r"hessruecker|mdprep|mpshift|rdgrad|ricctools|rimp2prep|"
-                              r"sammler|thirdruecker|uff)\s*"
-                              r"\([a-zA-Z0-9.]+\) \: TURBOMOLE [a-zA-Z0-9.]+",
-                 # endReStr = r"\s*\*\*\*\*\s",
+    # matches only those subprograms without dedicated parser
+    generic = SM(r"\s*(?:aoforce|cosmoprep|egrad|evib|frog|gradsammel|"
+                 r"hesssammel|moloch|odft|relax|ridft|rirpa|sdg|thirdsammel|"
+                 r"vibration|atbandbta|define|eigerf|fdetools|grad|haga|"
+                 r"intense|mpgrad|proper|ricc2|rimp2|ruecker|statpt|tm2molden|"
+                 r"woelfling|bsseenergy|freeh|gradruecker|riper|"
+                 r"hessruecker|mdprep|mpshift|rdgrad|ricctools|rimp2prep|"
+                 r"sammler|thirdruecker|uff)\s*"
+                 r"\([a-zA-Z0-9.]+\) \: TURBOMOLE [a-zA-Z0-9.]+",
+                 name="NewRun",
                  startReAction=set_generic,
-                 repeats = False,
-                 #sections = ['section_single_configuration_calculation'],
-                 subMatchers = [
-                     #controlInOutSubMatcher,
-                     SM (name = 'SectionMethod',
-                         startReStr = r"\s*Copyright \(C\) ",
-                         sections = ['section_method'],
-                         subMatchers = [
-                             # parse geometry writeout of aims
+                 subMatchers=[
+                     SM(name="general info",
+                         startReStr=r"\s*Copyright \(C\) ",
+                         subMatchers=[
                              context["geo"].build_qm_geometry_matcher(),
                              context["geo"].build_orbital_basis_matcher(),
-                             # common.build_controlinout_matcher()
+                             context["method"].build_dft_functional_matcher()
                          ]),
-
                      # the actual section for a single configuration calculation starts here
-                     SM (name = 'SingleConfigurationCalculation',
-                         #startReStr = r"\s*start vectors will be provided from a core hamilton",
-                         startReStr = r"\s*1e\-*integrals will be neglected if expon",
-                         startReAction=finalize_system_data,
-                         sections = ['section_single_configuration_calculation'],
-                         # repeats = True,
-                         subMatchers = [
-                             SM (name = 'PeriodicEmbeddingSettings',
-                                 startReStr = r"\s*\|\s*EMBEDDING IN PERIODIC POINT CHARGES\s*\|",
-                                 #sections = ['section_method'],
-                                 subMatchers = [
-                                     #SmearingOccupation,
-                                     build_embedding_matcher()
-                                 ]),
-                             SM (name = 'TotalEnergyForEachScfCycle',
-                                 startReStr = r"\s*scf convergence criterion",
-                                 #startReStr = r"\s*STARTING INTEGRAL EVALUATION FOR 1st SCF ITERATION",
-                                 #sections = ['section_scf_iteration'],
-                                 subMatchers = [
-                                     #EigenvaluesGroupSubMatcher,
-                                     #SmearingOccupation,
-                                     build_total_energy_scf_matcher(),
-                                     build_total_energy_final_matcher()
-                                 ]), # END ScfInitialization
-                             build_eigenvalues_matcher(),
-                             build_forces_matcher(),
-                         ]), # END SingleConfigurationCalculation
-                     SM (name = 'PostHFTotalEnergies',
-                         startReStr = r"\s*Energy of reference wave function is",
-                         sections = ['section_single_configuration_calculation','section_scf_iteration'],
-                         #sections = ['section_scf_iteration'],
-                         subMatchers = [
-                             build_total_energy_coupled_cluster_matcher()
-                         ]),
-                     SM (name = 'PTTotalEnergies',
-                         startReStr = r"\s*\|\s*MP2 relaxed",
-                         #sections = ['section_scf_iteration'],
-                         sections = ['section_single_configuration_calculation'],
-                         subMatchers = [
-                             build_total_energy_perturbation_theory_matcher()
-                         ])
-                 ])
+                     SM(r"\s*1e\-*integrals will be neglected if expon",
+                        name="Single Config",
+                        startReAction=finalize_system_data,
+                        sections=["section_single_configuration_calculation"],
+                        # repeats = True,
+                        subMatchers=[
+                            SM(r"\s*\|\s*EMBEDDING IN PERIODIC POINT CHARGES\s*\|",
+                               name = "Embedding",
+                               subMatchers=[
+                                   #SmearingOccupation,
+                                   build_embedding_matcher()
+                               ]
+                               ),
+                            SM(name='TotalEnergyForEachScfCycle',
+                                startReStr = r"\s*scf convergence criterion",
+                                subMatchers=[
+                                    #SmearingOccupation,
+                                    build_total_energy_scf_matcher(),
+                                    build_total_energy_final_matcher()
+                                ]),
+                            build_eigenvalues_matcher(),
+                            build_forces_matcher(),
+                        ]),
+                     SM(r"\s*Energy of reference wave function is",
+                        name="PostHFTotalEnergies",
+                        sections = ["section_single_configuration_calculation"],
+                        subMatchers=[
+                            build_total_energy_coupled_cluster_matcher()
+                        ]
+                        ),
+                     SM(r"\s*\|\s*MP2 relaxed",
+                        name="PTTotalEnergies",
+                        sections=["section_single_configuration_calculation"],
+                        subMatchers=[
+                            build_total_energy_perturbation_theory_matcher()
+                        ]
+                        )
+                 ]
+                 )
     modules = [
         ESCFparser(context).build_parser(),
         DSCFparser(context).build_parser(),
