@@ -13,6 +13,7 @@ from nomadcore.unit_conversion.unit_conversion import convert_unit_function
 import TurbomoleCommon as common
 from SystemParser import SystemParser
 from OrbitalParser import OrbitalParser
+from MethodParser import MethodParser
 from ESCFparser import ESCFparser
 from DSCFparser import DSCFparser
 
@@ -236,6 +237,7 @@ def build_root_parser(context):
     # shared subparsers created here are automatically stored in the context
     SystemParser(context)
     OrbitalParser(context)
+    MethodParser(context)
 
     def set_generic(backend, groups):
         context.generic = True

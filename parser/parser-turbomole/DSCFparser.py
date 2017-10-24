@@ -14,7 +14,6 @@ class DSCFparser(object):
         self.__context = context
         self.__index_map = dict()
         self.__backend = None
-        self.__spin_polarized = False
 
     def set_backend(self, backend):
         self.__backend = backend
@@ -37,7 +36,7 @@ class DSCFparser(object):
                   sections=["section_single_configuration_calculation"],
                   subMatchers=[
                       header,
-                      self.__build_uhf_matcher(),
+                      self.__context["method"].build_uhf_matcher(),
                       self.__context["geo"].build_qm_geometry_matcher(),
                       self.__context["geo"].build_orbital_basis_matcher(),
                       self.__context["orbitals"].build_state_matcher(),
@@ -45,16 +44,6 @@ class DSCFparser(object):
                       self.__build_scf_cycle_matcher(),
                       self.__build_total_energy_matcher()
                   ]
-                  )
-
-    def __build_uhf_matcher(self):
-
-        def set_spin_polarized(backend, groups):
-            self.__spin_polarized = True
-
-        return SM(r"\s*UHF mode switched on !",
-                  name="UHF switch",
-                  startReAction=set_spin_polarized
                   )
 
     def __build_scf_cycle_matcher(self):
