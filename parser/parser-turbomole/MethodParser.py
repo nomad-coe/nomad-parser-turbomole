@@ -30,6 +30,7 @@ class MethodParser(object):
         self.__context = context
         self.__backend = None
         self.__spin_channels = 1
+        self.__k_points = 1
         self.__index_method = -1
         self.__method = None
         self.__functional = None
@@ -41,6 +42,9 @@ class MethodParser(object):
 
     def spin_channels(self):
         return self.__spin_channels
+
+    def num_kpoints(self):
+        return self.__k_points
 
     def index_method(self):
         return self.__index_method

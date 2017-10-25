@@ -79,9 +79,8 @@ class RIDFTparser(object):
                           required=True
                           )
 
-        # TODO: verify if coulomb energy is really a derived meta-data
         xc_energy = SM(r"\s*Exc =\s*(?P<energy_XC_scf_iteration__hartree>"+RE_FLOAT+")"
-                       r"\s+Coul =\s*("+RE_FLOAT+")",
+                       r"\s+Coul =\s*(?P<energy_electrostatic_scf_iteration__hartree>"+RE_FLOAT+")",
                        )
         damping = SM(r"\s*current damping\s*=\s*"+RE_FLOAT)
 

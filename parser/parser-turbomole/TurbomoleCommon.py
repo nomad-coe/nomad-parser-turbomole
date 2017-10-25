@@ -19,7 +19,7 @@ def build_total_energy_matcher():
 
     energy_total = SM(r"\s*\|\s*total energy\s*=\s*(?P<energy_total__hartree>"
                       +RE_FLOAT+")\s*\|",
-                      name = "total energy",
+                      name="total energy",
                       required=True,
                       startReAction=set_current_energy
                       )
@@ -38,11 +38,11 @@ def build_total_energy_matcher():
                         name="virial theorem",
                         required=True
                         )
-    wavefuction_norm = SM(r"\s*\:\s*wavefunction norm\s*\=\s*"
-                          r"(?P<x_turbomole_wave_func_norm>"+RE_FLOAT+")\s*:\s*$",
-                          name="wavefunction norm",
-                          required=True
-                          )
+    wavefunction_norm = SM(r"\s*\:\s*wavefunction norm\s*\=\s*"
+                           r"(?P<x_turbomole_wave_func_norm>"+RE_FLOAT+")\s*:\s*$",
+                           name="wavefunction norm",
+                           required=True
+                           )
 
     return SM(r"\s*convergence criteria satisfied after\s+"
               r"(?P<number_of_scf_iterations>[0-9]+)\s+iterations",
@@ -53,7 +53,7 @@ def build_total_energy_matcher():
                   energy_kinetic,
                   energy_potential,
                   virial_theorem,
-                  wavefuction_norm
+                  wavefunction_norm
               ]
               )
 
