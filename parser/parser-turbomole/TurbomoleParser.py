@@ -8,8 +8,7 @@ from nomadcore.caching_backend import CachingLevel
 from nomadcore.simple_parser import AncillaryParser, mainFunction
 from nomadcore.simple_parser import SimpleMatcher as SM
 from TurbomoleCommon import get_metaInfo
-import logging, os, re, sys
-from nomadcore.unit_conversion.unit_conversion import convert_unit_function
+import logging, os
 import TurbomoleCommon as common
 from SystemParser import SystemParser
 from OrbitalParser import OrbitalParser
@@ -17,8 +16,6 @@ from MethodParser import MethodParser
 from ESCFparser import ESCFparser
 from DSCFparser import DSCFparser
 from RIDFTparser import RIDFTparser
-
-eV2J = convert_unit_function("eV","J")
 
 ############################################################
 # This is the parser for the main file of turbomole.
@@ -57,21 +54,6 @@ class TurbomoleParserContext(object):
         self.lastCalculationGIndex = None
         self.singleConfCalcs = []
         self.geoConvergence = None
-        self.eigenvalues = []
-        self.occupation = []
-        self.evSymm = []
-        self.alphaEv = None
-
-    def switchEVSpins(self):
-        """stores alpha spin and prepares for beta spin"""
-        self.alphaEv = {
-            'eigenvalues': self.eigenvalues,
-            'occupation': self.occupation,
-            'evSymm': self.evSymm
-        }
-        self.eigenvalues = []
-        self.occupation = []
-        self.evSymm = []
 
     def startedParsing(self, fInName, parser):
         """Function is called when the parsing starts.
@@ -88,10 +70,6 @@ class TurbomoleParserContext(object):
         self.metaInfoEnv = self.parser.parserBuilder.metaInfoEnv
         # allows to reset values if the same superContext is used to parse different files
         self.initialize_values()
-
-    def onClose_section_eigenvalues(self, backend, gIndex, section):
-        """write eigenvalues to the backend and then cleans local storage"""
-        pass
 
     def onClose_section_run(self, backend, gIndex, section):
 
@@ -123,24 +101,6 @@ class TurbomoleParserContext(object):
     def onOpen_section_system(self, backend, gIndex, section):
         # keep track of the latest system description section
         self.secSystemDescriptionIndex = gIndex
-
-    def onClose_x_turbomole_section_eigenvalues_list(self, backend, gIndex, section):
-        irrep_name = section['x_turbomole_irreducible_representation_state_str']
-        for item in range(len(irrep_name)):
-            Irrepresent = irrep_name[item].split()
-            self.evSymm += Irrepresent
-
-        eigenvalues_name = section['x_turbomole_eigenvalue_eigenvalue_str']
-        for mem in range(len(eigenvalues_name)):
-            Eigenval = eigenvalues_name[mem].split()
-            self.eigenvalues += map(lambda x: eV2J(float(x)), Eigenval)
-
-        occupation_name = section['x_turbomole_eigenvalue_occupation_str']
-        if not occupation_name == None:
-            for ele in range(len(occupation_name)):
-                Occupat = occupation_name[ele].split()
-                self.occupation += map(float, Occupat)
-        self.occupation += [0.0 for i in range(len(self.evSymm)-len(self.occupation))]
 
     def onOpen_section_single_configuration_calculation(self, backend, gIndex, section):
         self.singleConfCalcs.append(gIndex)
@@ -237,9 +197,9 @@ def build_root_parser(context):
                                 subMatchers=[
                                     #SmearingOccupation,
                                     build_total_energy_scf_matcher(),
-                                    build_total_energy_final_matcher()
+                                    common.build_total_energy_matcher()
                                 ]),
-                            build_eigenvalues_matcher(),
+                            context["orbitals"].build_eigenstate_matcher(),
                             build_forces_matcher(),
                         ]),
                      SM(r"\s*Energy of reference wave function is",
@@ -290,35 +250,6 @@ def build_root_parser(context):
                ]
                )
 
-def build_eigenvalues_matcher():
-    return SM(name = 'Eigenvalues',
-              repeats = False,
-              sections = ["section_eigenvalues"],
-              startReStr = r"\s*orbitals .*  will be written to file.*",
-              subMatchers = [
-                  SM(r"\s*(?:alpha:)\s*"),
-                  SM(r"\s*(?: irrep)\s*(?P<x_turbomole_irreducible_representation_state_str>[0-9a-z\s]+)",
-                     repeats = True,
-                     sections = ['x_turbomole_section_eigenvalues_list'],
-                     subMatchers = [
-                         SM(r"\s*eigenvalues H"),
-                         SM (r"\s*(?: eV)\s*(?P<x_turbomole_eigenvalue_eigenvalue_str>[-+0-9a-z.eEdD\s]+)", repeats = True),
-                         SM (r"\s*(?: occupation)\s*(?P<x_turbomole_eigenvalue_occupation_str>[0-9.\s]+)", repeats = True)
-                     ]),
-                  SM(r"\s*(?:beta:)\s*",
-                     adHoc = lambda parser: parser.superContext.switchEVSpins(),
-                     subMatchers = [
-                         SM(r"\s*(?: irrep)\s*(?P<x_turbomole_irreducible_representation_state_str>[0-9a-z\s]+)",
-                            repeats = True,
-                            sections = ['x_turbomole_section_eigenvalues_list'],
-                            subMatchers = [
-                                SM(r"\s*eigenvalues H"),
-                                SM (r"\s*(?: eV)\s*(?P<x_turbomole_eigenvalue_eigenvalue_str>[-+0-9a-z.eEdD\s]+)", repeats = True),
-                                SM (r"\s*(?: occupation)\s*(?P<x_turbomole_eigenvalue_occupation_str>[0-9.\s]+)", repeats = True)
-                            ])
-                     ])
-              ])
-
 def build_forces_matcher():
     return SM (name = 'AtomicForces',
                repeats =True,
@@ -344,19 +275,6 @@ def build_total_energy_scf_matcher():
                    SM (r"\s*max. resid. fock norm\s*\=\s*(?P<x_turbomole_max_res_norm_fock_norm>[-+0-9.eEdD]+)\s*for orbital\s*(?P<x_turbomole_orbital_name_fock_norm>[a-z0-9\s]+)"),
                    SM (r"\s*irrep a   \: virtual orbitals shifted by\s*(?P<x_turbomole_virtual_orbital_shift>[0-9.]+)"),
                    SM (r"\s*Delta Eig\.\s*\=\s*(?P<x_turbomole_delta_eigenvalues__eV>[-+0-9.eEdD]+)\s*eV")
-               ])
-
-def build_total_energy_final_matcher():
-    return SM (name = 'TotalEnergyFinal',
-               startReStr = r"\s*\|\s*total energy\s*\=",
-               forwardMatch = True,
-               subMatchers = [
-                   SM (r"\s*\|\s*total energy\s*\=\s*(?P<energy_total__eV>[-+0-9.eEdD]+)"),
-                   SM (r"\s*\:\s*kinetic energy\s*\=\s*(?P<x_turbomole_kinetic_energy_final__eV>[-+0-9.eEdD]+)"),
-                   SM (r"\s*\:\s*potential energy\s*\=\s*(?P<x_turbomole_potential_energy_final__eV>[-+0-9.eEdD]+)"),
-                   SM (r"\s*\:\s*virial theorem\s*\=\s*(?P<x_turbomole_virial_theorem_final__eV>[-+0-9.eEdD]+)"),
-                   SM (r"\s*\:\s*wavefunction norm\s*\=\s*(?P<x_turbomole_wave_func_norm__eV>[-+0-9.eEdD]+)")
-
                ])
 
 def build_occupation_smearing_matcher():

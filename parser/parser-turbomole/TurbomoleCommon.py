@@ -12,6 +12,7 @@ logger = logging.getLogger("nomad.turbomoleParser")
 
 RE_FLOAT = r"(?:[+-]?[0-9]+.?[0-9]*(?:[DEde][+-]?[0-9]+)?)"
 
+
 def build_total_energy_matcher():
     def set_current_energy(backend, groups):
         backend.addRealValue("energy_current", float(groups[0]), unit="hartree")
@@ -23,13 +24,23 @@ def build_total_energy_matcher():
                       startReAction=set_current_energy
                       )
     energy_kinetic = SM(r"\s*:\s*kinetic energy\s*=\s*(?P<electronic_kinetic_energy__hartree>"
-                        + RE_FLOAT+")\s*:",
+                        + RE_FLOAT+")\s*:\s*$",
                         name="kinetic energy",
                         required=True
                         )
     energy_potential = SM(r"\s*:\s*potential energy\s*=\s*"
-                          r"(?P<x_turbomole_potential_energy_final__hartree>"+RE_FLOAT+")\s*:",
+                          r"(?P<x_turbomole_potential_energy_final__hartree>"+RE_FLOAT+")\s*:\s*$",
                           name="potential energy",
+                          required=True
+                          )
+    virial_theorem = SM(r"\s*\:\s*virial theorem\s*\=\s*"
+                        r"(?P<x_turbomole_virial_theorem>"+RE_FLOAT+")\s*:\s*$",
+                        name="virial theorem",
+                        required=True
+                        )
+    wavefuction_norm = SM(r"\s*\:\s*wavefunction norm\s*\=\s*"
+                          r"(?P<x_turbomole_wave_func_norm>"+RE_FLOAT+")\s*:\s*$",
+                          name="wavefunction norm",
                           required=True
                           )
 
@@ -40,7 +51,9 @@ def build_total_energy_matcher():
               subMatchers=[
                   energy_total,
                   energy_kinetic,
-                  energy_potential
+                  energy_potential,
+                  virial_theorem,
+                  wavefuction_norm
               ]
               )
 

@@ -72,11 +72,7 @@ class OrbitalParser(object):
                              name="occupation",
                              startReAction=extract_occupation
                              )
-            return SM(r"\s*irrep\s+([0-9]+[a-z][1-9'\"])"
-                      r"(?:\s+([0-9]+[a-z][1-9'\"])|)"
-                      r"(?:\s+([0-9]+[a-z][1-9'\"])|)"
-                      r"(?:\s+([0-9]+[a-z][1-9'\"])|)"
-                      r"(?:\s+([0-9]+[a-z][1-9'\"])|)",
+            return SM(r"\s*irrep\s+([0-9]+[a-z][1-9'\"]?)" + 4 * r"(?:\s+([0-9]+[a-z][1-9'\"]?))?",
                       name="irRep list",
                       required=True,
                       repeats=True,
