@@ -42,7 +42,8 @@ class RIDFTparser(object):
                       self.__context["orbitals"].build_ir_rep_matcher(),
                       self.__context["method"].build_dft_functional_matcher(),
                       self.__build_scf_cycle_matcher(),
-                      build_total_energy_matcher()
+                      build_total_energy_matcher(),
+                      self.__context["orbitals"].build_eigenstate_matcher()
                   ]
                   )
 
