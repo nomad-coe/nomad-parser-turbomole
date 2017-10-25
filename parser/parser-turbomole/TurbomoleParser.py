@@ -16,6 +16,7 @@ from OrbitalParser import OrbitalParser
 from MethodParser import MethodParser
 from ESCFparser import ESCFparser
 from DSCFparser import DSCFparser
+from RIDFTparser import RIDFTparser
 
 eV2J = convert_unit_function("eV","J")
 
@@ -200,7 +201,7 @@ def build_root_parser(context):
 
     # matches only those subprograms without dedicated parser
     generic = SM(r"\s*(?:aoforce|cosmoprep|egrad|evib|frog|gradsammel|"
-                 r"hesssammel|moloch|odft|relax|ridft|rirpa|sdg|thirdsammel|"
+                 r"hesssammel|moloch|odft|relax|rirpa|sdg|thirdsammel|"
                  r"vibration|atbandbta|define|eigerf|fdetools|grad|haga|"
                  r"intense|mpgrad|proper|ricc2|rimp2|ruecker|statpt|tm2molden|"
                  r"woelfling|bsseenergy|freeh|gradruecker|riper|"
@@ -260,6 +261,7 @@ def build_root_parser(context):
     modules = [
         ESCFparser(context).build_parser(),
         DSCFparser(context).build_parser(),
+        RIDFTparser(context).build_parser(),
         generic,
         build_relaxation_matcher()
     ]

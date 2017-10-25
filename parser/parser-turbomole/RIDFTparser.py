@@ -1,4 +1,4 @@
-"""This module constructs the parser for the DSCF module from TurboMole"""
+"""This module constructs the parser for the RIDFT module from TurboMole"""
 
 import logging
 import re
@@ -8,9 +8,9 @@ from TurbomoleCommon import RE_FLOAT, build_total_energy_matcher
 logger = logging.getLogger("nomad.turbomoleParser")
 
 
-class DSCFparser(object):
+class RIDFTparser(object):
 
-    def __init__(self, context, key="dscf"):
+    def __init__(self, context, key="ridft"):
         context[key] = self
         self.__context = context
         self.__backend = None
@@ -19,20 +19,20 @@ class DSCFparser(object):
         self.__backend = backend
 
     def build_parser(self):
-        references = SM(r"\s{5,}[^+ ]+",
+        references = SM(r"\s{5,}[^+ ].+$",
                         name="references",
                         coverageIgnore=True,
                         repeats=True,
                         )
         header = SM(name="Credits",
-                    startReStr=r"\s*idea & directorship : reinhart ahlrichs",
+                    startReStr=r"\s*DFT program with RI approximation\s*$",
                     coverageIgnore=True,
                     subMatchers=[references],
                     endReStr=r"\s*\+-+\+"
                     )
 
-        return SM(name="DSCF module",
-                  startReStr=r"\s*d s c f - program",
+        return SM(name="RIDFT module",
+                  startReStr=r"\s*r i d f t\s*$",
                   sections=["section_single_configuration_calculation"],
                   subMatchers=[
                       header,
@@ -72,40 +72,34 @@ class DSCFparser(object):
                                  float(groups[0]) - PreviousCycle.energy, unit="hartree")
             PreviousCycle.energy = float(groups[0])
 
-        total_energy_matcher = SM(r"\s*[0-9]+\s+("+RE_FLOAT+")\s+("+RE_FLOAT+")\s+("+RE_FLOAT+")"
-                                  "\s+("+RE_FLOAT+")\s+("+RE_FLOAT+")",
-                                  startReAction=compute_energy_difference,
-                                  required=True
-                                  )
-        xc_energy_matcher = SM(r"\s*Exc =\s*(?P<energy_XC_scf_iteration__hartree>"+RE_FLOAT+")"
-                               r"\s+N =\s*("+RE_FLOAT+")",
-                               )
+        total_energy = SM(r"\s*[0-9]+\s+("+RE_FLOAT+")\s+("+RE_FLOAT+")\s+("+RE_FLOAT+")"
+                          "\s+("+RE_FLOAT+")\s+("+RE_FLOAT+")",
+                          startReAction=compute_energy_difference,
+                          required=True
+                          )
 
-        scf_iteration = SM("\s*current damping\s*:\s*[+-]?[0-9]+\.?[0-9]*",
+        # TODO: verify if coulomb energy is really a derived meta-data
+        xc_energy = SM(r"\s*Exc =\s*(?P<energy_XC_scf_iteration__hartree>"+RE_FLOAT+")"
+                       r"\s+Coul =\s*("+RE_FLOAT+")",
+                       )
+        damping = SM(r"\s*current damping\s*=\s*"+RE_FLOAT)
+
+        scf_iteration = SM("\s*ITERATION\s+ENERGY\s+1e-ENERGY\s+2e-ENERGY\s+"
+                           "RMS\[dD\(SAO\)\]\s+TOL",
                            name="SCF iteration",
                            repeats=True,
                            sections=["section_scf_iteration"],
                            subMatchers=[
-                               SM("\s*ITERATION\s+ENERGY\s+1e-ENERGY\s+2e-ENERGY\s+"
-                                  "NORM\[dD\(SAO\)\]\s+TOL",
-                                  name="SCF iteration",
-                                  required=True
-                                  ),
-                               total_energy_matcher,
-                               xc_energy_matcher
+                               total_energy,
+                               xc_energy,
+                               damping
                            ]
                            )
 
-        return SM(r"\s*STARTING INTEGRAL EVALUATION FOR 1st SCF ITERATION",
+        return SM(r"\s*Starting SCF iterations\s*$",
                   name="HF/DFT SCF",
                   required=True,
                   subMatchers=[
-                      SM("\s*time elapsed for pre-SCF steps : cpu\s+([0-9]+\.[0-9]+)\s+sec",
-                         name="SCF preparation",
-                         required=True),
-                      SM("\s*wall\s+([0-9]+\.[0-9]+)\s+sec",
-                         name="SCF preparation",
-                         required=True),
                       scf_iteration
                   ],
                   startReAction=finalize_system_data

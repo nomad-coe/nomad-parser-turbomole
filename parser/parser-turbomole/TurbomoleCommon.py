@@ -12,6 +12,39 @@ logger = logging.getLogger("nomad.turbomoleParser")
 
 RE_FLOAT = r"(?:[+-]?[0-9]+.?[0-9]*(?:[DEde][+-]?[0-9]+|))"
 
+def build_total_energy_matcher():
+    def set_current_energy(backend, groups):
+        backend.addRealValue("energy_current", float(groups[0]), unit="hartree")
+
+    energy_total = SM(r"\s*\|\s*total energy\s*=\s*(?P<energy_total__hartree>"
+                      +RE_FLOAT+")\s*\|",
+                      name = "total energy",
+                      required=True,
+                      startReAction=set_current_energy
+                      )
+    energy_kinetic = SM(r"\s*:\s*kinetic energy\s*=\s*(?P<electronic_kinetic_energy__hartree>"
+                        + RE_FLOAT+")\s*:",
+                        name="kinetic energy",
+                        required=True
+                        )
+    energy_potential = SM(r"\s*:\s*potential energy\s*=\s*"
+                          r"(?P<x_turbomole_potential_energy_final__hartree>"+RE_FLOAT+")\s*:",
+                          name="potential energy",
+                          required=True
+                          )
+
+    return SM(r"\s*convergence criteria satisfied after\s+"
+              r"(?P<number_of_scf_iterations>[0-9]+)\s+iterations",
+              name="SCF end",
+              required=True,
+              subMatchers=[
+                  energy_total,
+                  energy_kinetic,
+                  energy_potential
+              ]
+              )
+
+
 def build_controlinout_matcher():
     return SM (name = 'ControlInOut',
                startReStr = r"\s*\|\s*basis set information\s",
