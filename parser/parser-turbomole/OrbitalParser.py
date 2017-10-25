@@ -16,13 +16,13 @@ class OrbitalParser(object):
     def set_backend(self, backend):
         self.__backend = backend
 
-    def build_state_matcher(self):
+    def build_ir_rep_matcher(self):
 
         def sum_orbitals(backend, groups):
             self.__num_orbitals += int(groups[1])
 
-        ir_rep = SM(r"\s*([a-z]+[0-9]+)\s+([0-9]+)\s+([0-9]+)",
-                    # irreducible representation name, num orbitals, num occupied
+        # irreducible representation name, num orbitals, num occupied
+        ir_rep = SM(r"\s*([a-z]+[0-9]*)\s+([0-9]+)\s+([0-9]+)",
                     name="irRep info",
                     repeats=True,
                     startReAction=sum_orbitals

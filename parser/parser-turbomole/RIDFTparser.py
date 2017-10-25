@@ -39,7 +39,7 @@ class RIDFTparser(object):
                       self.__context["method"].build_uhf_matcher(),
                       self.__context["geo"].build_qm_geometry_matcher(),
                       self.__context["geo"].build_orbital_basis_matcher(),
-                      self.__context["orbitals"].build_state_matcher(),
+                      self.__context["orbitals"].build_ir_rep_matcher(),
                       self.__context["method"].build_dft_functional_matcher(),
                       self.__build_scf_cycle_matcher(),
                       build_total_energy_matcher()
