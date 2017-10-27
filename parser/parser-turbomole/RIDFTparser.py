@@ -67,22 +67,54 @@ class RIDFTparser(object):
 
         def compute_energy_difference(backend, groups):
             backend.addRealValue("energy_total_scf_iteration", float(groups[0]), unit="hartree")
+            backend.addRealValue("x_turbomole_energy_1electron_scf_iteration",
+                                 float(groups[1]), unit="hartree")
+            backend.addRealValue("x_turbomole_energy_2electron_scf_iteration",
+                                 float(groups[2]), unit="hartree")
+            # TODO: clarify the meaning of the "NORM[dD(SAO)]" and "TOL" columns in the output
             if PreviousCycle.energy:
                 # TODO: doublecheck we're dealing with Hartrees here
                 backend.addRealValue("energy_change_scf_iteration",
                                  float(groups[0]) - PreviousCycle.energy, unit="hartree")
             PreviousCycle.energy = float(groups[0])
 
+        def store_damping(backend, groups):
+            backend.addRealValue("x_turbomole_damping_scf_iteration",
+                                 1.0 / (1.0 + float(groups[0])))
+
         total_energy = SM(r"\s*[0-9]+\s+("+RE_FLOAT+")\s+("+RE_FLOAT+")\s+("+RE_FLOAT+")"
                           "\s+("+RE_FLOAT+")\s+("+RE_FLOAT+")",
+                          name="SCF E total",
                           startReAction=compute_energy_difference,
                           required=True
                           )
 
         xc_energy = SM(r"\s*Exc =\s*(?P<energy_XC_scf_iteration__hartree>"+RE_FLOAT+")"
                        r"\s+Coul =\s*(?P<energy_electrostatic_scf_iteration__hartree>"+RE_FLOAT+")",
+                       name="SCF E xc+coul",
                        )
-        damping = SM(r"\s*current damping\s*=\s*"+RE_FLOAT)
+        damping = SM(r"\s*current damping\s*=\s*("+RE_FLOAT+")\s*$",
+                     name="SCF damping",
+                     startReAction=store_damping
+                     )
+
+        # TODO: identify the units of these norms
+        norm_diis = SM(r"\s*Norm of current diis error:\s*(?P<x_turbomole_norm_diis_scf_iteration>"
+                       + RE_FLOAT+r")\s*$",
+                       name="SCF norm DIIS"
+                       )
+        norm_fia_block = SM(r"\s*max. resid. norm for Fia\-block\s*=\s*(?P"
+                            r"<x_turbomole_norm_fia_scf_iteration>"+RE_FLOAT+")\s*for orbital\s+"
+                            r"(?P<x_turbomole_norm_fia_orbital_scf_iteration>[0-9]+[a-z][0-9'\"]?"
+                            r"\s*(?:alpha|beta)?)\s*$",
+                            name="SCF norm Fia"
+                            )
+        norm_fock = SM(r"\s*max. resid. fock norm\s*=\s*(?P"
+                       r"<x_turbomole_norm_fock_scf_iteration>"+RE_FLOAT+")\s*for orbital\s+"
+                       r"(?P<x_turbomole_norm_fock_orbital_scf_iteration>[0-9]+[a-z][0-9'\"]?"
+                       r"\s*(?:alpha|beta)?)\s*$",
+                       name="SCF norm Fock"
+                       )
 
         scf_iteration = SM("\s*ITERATION\s+ENERGY\s+1e-ENERGY\s+2e-ENERGY\s+"
                            "RMS\[dD\(SAO\)\]\s+TOL",
@@ -92,7 +124,10 @@ class RIDFTparser(object):
                            subMatchers=[
                                total_energy,
                                xc_energy,
-                               damping
+                               damping,
+                               norm_diis,
+                               norm_fia_block,
+                               norm_fock
                            ]
                            )
 
