@@ -196,7 +196,6 @@ def build_root_parser(context):
                                 startReStr = r"\s*scf convergence criterion",
                                 subMatchers=[
                                     #SmearingOccupation,
-                                    build_total_energy_scf_matcher(),
                                     common.build_total_energy_matcher()
                                 ]),
                             context["orbitals"].build_eigenstate_matcher(),
@@ -257,24 +256,6 @@ def build_forces_matcher():
                #forwardMatch = True,
                subMatchers = [
                    SM (r"\s*(?:[0-9]+)\s*(?:[a-z]+)\s*(?P<x_turbomole_atom_forces_raw_x__hartree_bohr_1>[-+0-9.eEdD]+)\s*(?P<x_turbomole_atom_forces_raw_y__hartree_bohr_1>[-+0-9.eEdD]+)\s*(?P<x_turbomole_atom_forces_raw_z__hartree_bohr_1>[-+0-9.eEdD]+)", repeats = True)
-               ])
-
-def build_total_energy_scf_matcher():
-    return SM (name = 'TotalEnergyScf',
-               repeats =True,
-               #startReStr = r"\s*scf convergence criterion",
-               #startReStr = r"\s*current damping\s*:\s*",
-               sections = ['section_scf_iteration'],
-               startReStr = r"\s*ITERATION  ENERGY\s*",
-               #forwardMatch = True,
-               subMatchers = [
-                   SM (r"\s*current damping\s*:\s*(?P<x_turbomole_energy_scf_damping>[0-9.eEdD]+)"),
-                   SM (r"\s*(?P<x_turbomole_iteration_number>[0-9]+)\s*(?P<x_turbomole_energy_total_scf_iteration__eV>[-+0-9.eEdD]+)\s*(?P<x_turbomole_energy_one_scf_iteration__eV>[-+0-9.eEdD]+)"
-                       "\s*(?P<x_turbomole_energy_two_scf_iteration__eV>[-+0-9.eEdD]+)\s*(?P<x_turbomole_energy_norm_scf_iteration__eV>[-+0-9.eEdD]+)\s*(?P<x_turbomole_energy_tolerance_scf_iteration__eV>[-+0-9.eEdD]+)"),
-                   SM (r"\s*max. resid. norm for Fia\-block\=\s*(?P<x_turbomole_max_res_norm_fia_block>[-+0-9.eEdD]+)\s*for orbital\s*(?P<x_turbomole_orbital_name_fia_block>[a-z0-9\s]+)"),
-                   SM (r"\s*max. resid. fock norm\s*\=\s*(?P<x_turbomole_max_res_norm_fock_norm>[-+0-9.eEdD]+)\s*for orbital\s*(?P<x_turbomole_orbital_name_fock_norm>[a-z0-9\s]+)"),
-                   SM (r"\s*irrep a   \: virtual orbitals shifted by\s*(?P<x_turbomole_virtual_orbital_shift>[0-9.]+)"),
-                   SM (r"\s*Delta Eig\.\s*\=\s*(?P<x_turbomole_delta_eigenvalues__eV>[-+0-9.eEdD]+)\s*eV")
                ])
 
 def build_occupation_smearing_matcher():
