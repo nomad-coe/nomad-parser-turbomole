@@ -73,7 +73,6 @@ class RIDFTparser(object):
                                  float(groups[2]), unit="hartree")
             # TODO: clarify the meaning of the "NORM[dD(SAO)]" and "TOL" columns in the output
             if PreviousCycle.energy:
-                # TODO: doublecheck we're dealing with Hartrees here
                 backend.addRealValue("energy_change_scf_iteration",
                                  float(groups[0]) - PreviousCycle.energy, unit="hartree")
             PreviousCycle.energy = float(groups[0])
