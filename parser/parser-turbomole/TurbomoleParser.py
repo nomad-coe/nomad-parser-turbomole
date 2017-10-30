@@ -9,7 +9,7 @@ from nomadcore.simple_parser import AncillaryParser, mainFunction
 from nomadcore.simple_parser import SimpleMatcher as SM
 from TurbomoleCommon import get_metaInfo
 import logging, os
-import TurbomoleCommon as common
+import TurbomoleCommon as Common
 from SystemParser import SystemParser
 from OrbitalParser import OrbitalParser
 from MethodParser import MethodParser
@@ -154,30 +154,30 @@ def build_root_parser(context):
     def set_generic(backend, groups):
         context.generic = True
 
+    modules = r"(?:aoforce|cosmoprep|egrad|evib|frog|gradsammel|" \
+              r"hesssammel|moloch|odft|relax|rirpa|sdg|thirdsammel|" \
+              r"vibration|atbandbta|define|eigerf|fdetools|grad|haga|" \
+              r"intense|mpgrad|proper|ricc2|rimp2|ruecker|statpt|tm2molden|" \
+              r"woelfling|bsseenergy|freeh|gradruecker|riper|hessruecker|" \
+              r"mdprep|mpshift|rdgrad|ricctools|rimp2prep|sammler|thirdruecker|uff)"
+
     # matches only those subprograms without dedicated parser
-    generic = SM(r"\s*(?:aoforce|cosmoprep|egrad|evib|frog|gradsammel|"
-                 r"hesssammel|moloch|odft|relax|rirpa|sdg|thirdsammel|"
-                 r"vibration|atbandbta|define|eigerf|fdetools|grad|haga|"
-                 r"intense|mpgrad|proper|ricc2|rimp2|ruecker|statpt|tm2molden|"
-                 r"woelfling|bsseenergy|freeh|gradruecker|riper|"
-                 r"hessruecker|mdprep|mpshift|rdgrad|ricctools|rimp2prep|"
-                 r"sammler|thirdruecker|uff)\s*"
+    generic = SM(r"\s*"+modules+"\s*"
                  r"\([a-zA-Z0-9.]+\) \: TURBOMOLE [a-zA-Z0-9.]+",
                  name="NewRun",
+                 sections=["section_single_configuration_calculation"],
                  startReAction=set_generic,
                  subMatchers=[
                      SM(name="general info",
                          startReStr=r"\s*Copyright \(C\) ",
                          subMatchers=[
+                             Common.build_start_time_matcher(),
                              context["geo"].build_qm_geometry_matcher(simple_mode=True),
                              context["geo"].build_orbital_basis_matcher(),
                              context["method"].build_dft_functional_matcher(simple_mode=True)
                          ]),
-                     # the actual section for a single configuration calculation starts here
                      SM(r"\s*1e\-*integrals will be neglected if expon",
                         name="Single Config",
-                        sections=["section_single_configuration_calculation"],
-                        # repeats = True,
                         subMatchers=[
                             SM(r"\s*\|\s*EMBEDDING IN PERIODIC POINT CHARGES\s*\|",
                                name = "Embedding",
@@ -190,28 +190,28 @@ def build_root_parser(context):
                                 startReStr = r"\s*scf convergence criterion",
                                 subMatchers=[
                                     #SmearingOccupation,
-                                    common.build_total_energy_matcher()
+                                    Common.build_total_energy_matcher()
                                 ]),
                             context["orbitals"].build_eigenstate_matcher(),
                             build_forces_matcher(),
                         ]),
                      SM(r"\s*Energy of reference wave function is",
                         name="PostHFTotalEnergies",
-                        sections = ["section_single_configuration_calculation"],
                         subMatchers=[
                             build_total_energy_coupled_cluster_matcher()
                         ]
                         ),
                      SM(r"\s*\|\s*MP2 relaxed",
                         name="PTTotalEnergies",
-                        sections=["section_single_configuration_calculation"],
                         subMatchers=[
                             build_total_energy_perturbation_theory_matcher()
                         ]
-                        )
+                        ),
+                     Common.build_end_time_matcher(modules)
                  ]
                  )
     modules = [
+        Common.build_start_time_matcher(),
         ESCFparser(context).build_parser(),
         DSCFparser(context).build_parser(),
         RIDFTparser(context).build_parser(),
