@@ -95,7 +95,7 @@ class SystemParser(object):
         self.__backend.addArrayValues("mapping_section_basis_set_atom_centered", mapping)
         self.__backend.closeSection("section_basis_set", self.__index_basis_set)
 
-    def build_qm_geometry_matcher(self):
+    def build_qm_geometry_matcher(self, simple_mode=False):
 
         def open_section(backend, groups):
             self.__index_qm_geo = backend.openSection("section_system")
@@ -130,14 +130,16 @@ class SystemParser(object):
                   r"\s+([-+]?[0-9]+)"
         atom = SM(atom_re, repeats=True, name="single atom", startReAction=add_atom)
         header_re = r"\s*atomic\s+coordinates\s+atom(?:\s+shells)?\s+charge(?:\s+pseudo)?\s+isotop"
+
         return SM(name="geometry",
                   startReStr=r"\s*\|\s+Atomic coordinate, charge and isotope? information\s+\|",
+                  sections=["section_system"] if simple_mode else [],
                   subMatchers=[
                       SM(r"\s*-{20}-*", name="<format>", coverageIgnore=True),
                       SM(header_re, name="atom list", subMatchers=[atom]),
                       SM("\s*center of nuclear mass", startReAction=finalize_data)
                   ],
-                  startReAction=open_section
+                  startReAction=open_section if not simple_mode else None,
                   )
 
     def build_orbital_basis_matcher(self):

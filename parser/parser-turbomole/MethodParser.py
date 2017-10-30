@@ -74,7 +74,7 @@ class MethodParser(object):
                   )
 
     # TODO: add support for remaining XC-functionals in Turbomole + custom mixing combinations
-    def build_dft_functional_matcher(self):
+    def build_dft_functional_matcher(self, simple_mode=False):
         exchange = SM(r"\s*exchange:\s*(?P<x_turbomole_functional_type_exchange>.+)")
         correlation = SM(r"\s*correlation:\s*(?P<x_turbomole_functional_type_correlation>.+)")
 
@@ -96,7 +96,8 @@ class MethodParser(object):
 
         return SM(r"\s*density functional\s*$",
                   name="DFT functional",
-                  startReAction=start_section,
+                  startReAction=start_section if not simple_mode else None,
+                  sections=["section_method"] if simple_mode else [],
                   subMatchers=[
                       SM(r"\s*-{5,}\s*$",
                          name="<format>",

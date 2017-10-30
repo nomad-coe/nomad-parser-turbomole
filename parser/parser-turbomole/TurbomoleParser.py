@@ -146,11 +146,6 @@ def build_root_parser(context):
         for key, sub_parser in context:
             sub_parser.set_backend(backend)
 
-    def finalize_system_data(backend, groups):
-        context["geo"].finalize_sections()
-        context["geo"].write_basis_set_mapping()
-        context["method"].close_method_section()
-
     # shared subparsers created here are automatically stored in the context
     SystemParser(context)
     OrbitalParser(context)
@@ -174,14 +169,13 @@ def build_root_parser(context):
                      SM(name="general info",
                          startReStr=r"\s*Copyright \(C\) ",
                          subMatchers=[
-                             context["geo"].build_qm_geometry_matcher(),
+                             context["geo"].build_qm_geometry_matcher(simple_mode=True),
                              context["geo"].build_orbital_basis_matcher(),
-                             context["method"].build_dft_functional_matcher()
+                             context["method"].build_dft_functional_matcher(simple_mode=True)
                          ]),
                      # the actual section for a single configuration calculation starts here
                      SM(r"\s*1e\-*integrals will be neglected if expon",
                         name="Single Config",
-                        startReAction=finalize_system_data,
                         sections=["section_single_configuration_calculation"],
                         # repeats = True,
                         subMatchers=[
