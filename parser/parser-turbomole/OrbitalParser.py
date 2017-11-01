@@ -1,17 +1,43 @@
 import logging
 import numpy as np
+import re
+from functools import total_ordering
 from nomadcore.simple_parser import SimpleMatcher as SM
 from TurbomoleCommon import RE_FLOAT
 
 logger = logging.getLogger("nomad.turbomoleParser")
 
 
-class _EigenValue(object):
+@total_ordering
+class _EigenState(object):
 
-    def __init__(self, index):
+    def __init__(self, index, ir_rep, spin, k_point):
         self.index = index
         self.eigenvalue = float("nan")
-        self.occupation = 0.0
+        self.occupation = -1.0
+        self.spin_channel = spin
+        self.k_point = k_point
+        self.irreducible_representation = ir_rep
+
+    def __eq__(self, other):
+        if isinstance(other, _EigenState):
+            return self.irreducible_representation == other.irreducible_representation \
+                   and self.spin_channel == other.spin_channel \
+                   and self.k_point == other.k_point and self.index == other.index
+        else:
+            return False
+
+    def __lt__(self, other):
+        if isinstance(other, _EigenState):
+            if self.irreducible_representation < other.irreducible_representation:
+                return True
+            elif self.spin_channel < other.spin_channel:
+                return True
+            elif self.k_point < other.k_point:
+                return True
+            elif self.index < other.index:
+                return True
+        return False
 
 
 class OrbitalParser(object):
@@ -23,8 +49,9 @@ class OrbitalParser(object):
         self.__index_eigenvalues = 0
         self.__num_orbitals = 0
         self.__current_spin_channel = 0
-        self.__last_row_offset = -5
-        self.__eigenstates = {(0, 0): list()}
+        self.__current_k_point = 0
+        self.__eigenstates = list()
+        self.__eigenstates_staging = list()
 
     def set_backend(self, backend):
         self.__backend = backend
@@ -37,26 +64,52 @@ class OrbitalParser(object):
     # parsing functions
 
     def __write_eigenvalues(self, backend, gIndex, section):
-        num_eigenvalues = max(len(x) for x in self.__eigenstates.values())
-        num_kpoints = self.__context["method"].num_kpoints()
+        num_k_points = self.__context["method"].num_kpoints()
         num_spin = self.__context["method"].spin_channels()
+        num_eigenvalues = 0
+        for spin in range(0, num_spin):
+            for k_point in range(0, num_k_points):
+                subset = [state for state in self.__eigenstates if state.spin_channel == spin and
+                          state.k_point == k_point]
+                num_eigenvalues = max(num_eigenvalues, len(subset))
         eigenvalue_type = "normal" if num_eigenvalues == self.__num_orbitals else "partial"
-        eigenvalues = np.ndarray(shape=(num_spin, num_kpoints, num_eigenvalues), dtype=float)
-        occupation = np.ndarray(shape=(num_spin, num_kpoints, num_eigenvalues), dtype=float)
-        if num_kpoints > 1:
+        eigenvalues = np.ndarray(shape=(num_spin, num_k_points, num_eigenvalues), dtype=float)
+        eigenvalues[:, :, :] = 0.0
+        occupation = np.ndarray(shape=(num_spin, num_k_points, num_eigenvalues), dtype=float)
+        occupation[:, :, :] = 0.0
+        representation = np.ndarray(shape=(num_spin, num_k_points, num_eigenvalues), dtype="U2")
+        representation[:, :, :] = "  "
+        if num_k_points > 1:
             logger.error("no support for multi k-point eigenvalues implemented, skipping!")
             return
-        for (spin, k_point), state_list in self.__eigenstates.items():
-            for i, state in enumerate(state_list):
-                eigenvalues[spin, k_point, i] = state.eigenvalue
-                occupation[spin, k_point, i] = state.occupation
-        # TODO: add irreducible representation information once publicly available
+        for spin in range(0, num_spin):
+            for k_point in range(0, num_k_points):
+                subset = list(state for state in self.__eigenstates if state.spin_channel == spin
+                              and state.k_point == k_point)
+                ir_reps = set(state.irreducible_representation for state in subset)
+                offset = 0
+                for ir_rep in sorted(ir_reps):
+                    ir_rep_states = sorted([state for state in subset
+                                            if state.irreducible_representation == ir_rep])
+                    highest_occupied = max(x.index for x in ir_rep_states if x.occupation > 0.0)
+                    max_occupation = max(x.occupation for x in ir_rep_states if x.occupation > 0.0)
+                    for i, state in enumerate(ir_rep_states):
+                        eigenvalues[spin, k_point, offset + i] = state.eigenvalue
+                        if state.occupation <= 0.0:
+                            state.occupation = max_occupation if state.index <= highest_occupied \
+                                else 0.0
+                        occupation[spin, k_point, offset + i] = state.occupation
+                        representation[spin, k_point, offset + i] = state.irreducible_representation
+                    offset += len(ir_rep_states)
+        # TODO: move irreducible representation information to public meta data, once available
         self.__index_eigenvalues = self.__backend.openSection("section_eigenvalues")
         self.__backend.addValue("number_of_eigenvalues", num_eigenvalues)
-        self.__backend.addValue("number_of_eigenvalues_kpoints", num_kpoints)
+        self.__backend.addValue("number_of_eigenvalues_kpoints", num_k_points)
         self.__backend.addValue("eigenvalues_kind", eigenvalue_type)
         self.__backend.addArrayValues("eigenvalues_values", eigenvalues, unit="hartree")
         self.__backend.addArrayValues("eigenvalues_occupation", occupation)
+        self.__backend.addArrayValues("x_turbomole_eigenvalues_irreducible_representation",
+                                      representation)
         self.__backend.closeSection("section_eigenvalues", self.__index_eigenvalues)
 
     def build_ir_rep_matcher(self):
@@ -82,32 +135,35 @@ class OrbitalParser(object):
 
     def build_eigenstate_matcher(self):
 
+        re_state_split = re.compile(r"([0-9]+)([a-z][0-9'\"]?)")
+
         def process_mo_file(backend, groups):
             pass
 
         def extract_states(backend, groups):
-            eigenstates = self.__eigenstates[self.__current_spin_channel, 0]
+            self.__eigenstates_staging.clear()
             for state in groups:
                 if state:
-                    eigenstates.append(_EigenValue(state))
-            self.__last_row_offset += 5
+                    match = re_state_split.match(state)
+                    index = int(match.group(1))
+                    ir_rep = match.group(2)
+                    to_add = _EigenState(index, ir_rep, self.__current_spin_channel,
+                                         self.__current_k_point)
+                    self.__eigenstates_staging.append(to_add)
+                    self.__eigenstates.append(to_add)
 
         def extract_eigenvalues(backend, groups):
-            eigenstates = self.__eigenstates[self.__current_spin_channel, 0]
             for i, eigenvalue in enumerate(groups):
                 if eigenvalue:
-                    eigenstates[self.__last_row_offset+i].eigenvalue = float(eigenvalue)
+                    self.__eigenstates_staging[i].eigenvalue = float(eigenvalue)
 
         def extract_occupation(backend, groups):
-            eigenstates = self.__eigenstates[self.__current_spin_channel, 0]
             for i, occupation in enumerate(groups):
                 if occupation:
-                    eigenstates[self.__last_row_offset+i].occupation = float(occupation)
+                    self.__eigenstates_staging[i].occupation = float(occupation)
 
         def next_spin_channel(backend, groups):
             self.__current_spin_channel += 1
-            self.__eigenstates[self.__current_spin_channel, 0] = list()
-            self.__last_row_offset = -5
 
         def states():
             eigenvals_hartree = SM(r"\s*eigenvalues H\s+("+RE_FLOAT+")"
@@ -124,7 +180,7 @@ class OrbitalParser(object):
                              name="occupation",
                              startReAction=extract_occupation
                              )
-            return SM(r"\s*irrep\s+([0-9]+[a-z][1-9'\"]?)" + 4 * r"(?:\s+([0-9]+[a-z][1-9'\"]?))?",
+            return SM(r"\s*irrep\s+([0-9]+[a-z][0-9'\"]?)" + 4 * r"(?:\s+([0-9]+[a-z][0-9'\"]?))?",
                       name="irRep list",
                       required=True,
                       repeats=True,
