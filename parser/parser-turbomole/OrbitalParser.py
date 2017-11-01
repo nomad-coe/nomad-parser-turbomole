@@ -155,7 +155,7 @@ class OrbitalParser(object):
             self.__current_spin_channel = 0
 
         def extract_states(backend, groups):
-            self.__eigenstates_staging.clear()
+            self.__eigenstates_staging = list()
             for state in groups:
                 if state:
                     match = re_state_split.match(state)
