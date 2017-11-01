@@ -1,8 +1,10 @@
 import logging
 import numpy as np
+import os.path
 import re
 from functools import total_ordering
 from nomadcore.simple_parser import SimpleMatcher as SM
+from nomadcore.simple_parser import AncillaryParser
 from TurbomoleCommon import RE_FLOAT
 
 logger = logging.getLogger("nomad.turbomoleParser")
@@ -48,7 +50,7 @@ class OrbitalParser(object):
         self.__backend = None
         self.__index_eigenvalues = 0
         self.__num_orbitals = 0
-        self.__current_spin_channel = 0
+        self.__current_spin_channel = -1
         self.__current_k_point = 0
         self.__eigenstates = list()
         self.__eigenstates_staging = list()
@@ -138,7 +140,19 @@ class OrbitalParser(object):
         re_state_split = re.compile(r"([0-9]+)([a-z][0-9'\"]?)")
 
         def process_mo_file(backend, groups):
-            pass
+            self.__current_spin_channel += 1
+            states_parser = self.__build_eigenstate_file_parser()
+            dir_name = os.path.dirname(os.path.abspath(self.__context.fName))
+            file_name = os.path.normpath(os.path.join(dir_name, groups[1]))
+            try:
+                with open(file_name) as file_in:
+                    states_parser.parseFile(file_in)
+            except IOError:
+                logger.warning("Could not find auxiliary file '%s' in directory '%s'." % (
+                    groups[1], dir_name))
+
+        def reset_spin_count(backend, groups):
+            self.__current_spin_channel = 0
 
         def extract_states(backend, groups):
             self.__eigenstates_staging.clear()
@@ -149,8 +163,12 @@ class OrbitalParser(object):
                     ir_rep = match.group(2)
                     to_add = _EigenState(index, ir_rep, self.__current_spin_channel,
                                          self.__current_k_point)
-                    self.__eigenstates_staging.append(to_add)
-                    self.__eigenstates.append(to_add)
+                    if to_add in self.__eigenstates:
+                        to_update = self.__eigenstates[self.__eigenstates.index(to_add)]
+                        self.__eigenstates_staging.append(to_update)
+                    else:
+                        self.__eigenstates_staging.append(to_add)
+                        self.__eigenstates.append(to_add)
 
         def extract_eigenvalues(backend, groups):
             for i, eigenvalue in enumerate(groups):
@@ -206,7 +224,8 @@ class OrbitalParser(object):
                   subMatchers=[
                       subfiles,
                       SM(r"\s*alpha\s*:\s*$",
-                         name="alpha spin"
+                         name="alpha spin",
+                         startReAction=reset_spin_count
                          ),
                       states(),
                       SM(r"\s*beta\s*:\s*$",
@@ -216,3 +235,32 @@ class OrbitalParser(object):
                       states()
                   ]
                   )
+
+    def __build_eigenstate_file_parser(self):
+        def add_eigenstate(backend, groups):
+            to_add = _EigenState(int(groups[0]), groups[1], self.__current_spin_channel,
+                                 self.__current_k_point)
+            to_add.eigenvalue = float(groups[2].replace("D", "E").replace("d", "e"))
+            if to_add in self.__eigenstates:
+                logger.warning("eigenstate from file already known: " + str(to_add.__dict__))
+            else:
+                self.__eigenstates.append(to_add)
+
+        coefficients = SM(r"\s*"+4*("(?:"+RE_FLOAT+")?")+r"\s*$",
+                          name="coefficients",
+                          repeats=True,
+                          coverageIgnore=True)
+        state = SM(r"\s*([0-9]+)\s+([a-z'\"])\s+eigenvalue=("+RE_FLOAT+")\s+nsaos=([0-9]+)\s*$",
+                   name="eigenstate",
+                   repeats=True,
+                   startReAction=add_eigenstate,
+                   subMatchers=[
+                       coefficients
+                   ]
+                   )
+
+        return AncillaryParser(fileDescription=state,
+                               parser=self.__context.parser,
+                               cachingLevelForMetaName=dict(),
+                               superContext=self.__context
+                               )
