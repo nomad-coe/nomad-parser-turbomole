@@ -46,6 +46,7 @@ class SystemParser(object):
         self.__index_basis_set = -1
         self.__atoms = list()
         self.__basis_sets = dict()
+        self.__pceem_parameters = dict()
 
     def set_backend(self, backend):
         self.__backend = backend
@@ -76,6 +77,10 @@ class SystemParser(object):
             self.__backend.addValue("system_to_system_kind", "shifted embedded QM cluster")
             self.__backend.addValue("system_to_system_ref", self.__index_peecm_qm_cluster)
             self.__backend.closeSection("section_system_to_system_refs", index)
+        if self.__index_peecm_unit_cell != -1:
+            self.__backend.addValue("embedded_system", True, self.__index_qm_geo)
+        for key, value in self.__pceem_parameters.items():
+            self.__backend.addValue(key, value, self.__index_qm_geo)
         self.__backend.closeSection("section_system", self.__index_qm_geo)
 
     def write_basis_set_mapping(self):
@@ -285,9 +290,37 @@ class SystemParser(object):
                 section_map["pc-cluster"] = backend.openSection("section_system_to_system_refs")
                 section_map["qm-cluster"] = backend.openSection("section_system_to_system_refs")
 
+        def store_max_multipole(backend, groups):
+            self.__pceem_parameters["x_turbomole_pceem_max_multipole"] = int(groups[0])
+
+        def store_multipole_precision(backend, groups):
+            self.__pceem_parameters["x_turbomole_pceem_multipole_precision"] = float(groups[0])
+
+        def store_cell_separation(backend, groups):
+            self.__pceem_parameters["x_turbomole_pceem_min_separation_cells"] = float(groups[0])
+
+        max_multipole = SM(r"\s*Maximum multipole moment used\s*:\s*([0-9]+)\s*$",
+                           name="max multipole",
+                           startReAction=store_max_multipole
+                           )
+        multipole_precision = SM(r"\s*Multipole precision parameter\s*:\s*("+RE_FLOAT+")\s*$",
+                                 name="multipole precision",
+                                 startReAction=store_multipole_precision
+                                 )
+        cell_separation = SM(r"\s*Minimum separation between cells\s*:\s*("+RE_FLOAT+")\s*$",
+                             name="cell seperation",
+                             startReAction=store_cell_separation
+                             )
+
         header = SM(r"\s*\+-+\s*Parameters\s*-*\+\s*$",
                     name="PCEEM parameters",
-                    startReAction=prepare_links)
+                    startReAction=prepare_links,
+                    subMatchers=[
+                        max_multipole,
+                        multipole_precision,
+                        cell_separation
+                    ]
+                    )
 
         return SM(r"\s*\|\s*EMBEDDING IN PERIODIC POINT CHARGES\s*\|\s*$",
                   name="embedding (PEECM)",
