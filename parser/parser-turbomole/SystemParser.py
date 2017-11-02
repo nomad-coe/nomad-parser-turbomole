@@ -170,10 +170,19 @@ class SystemParser(object):
     def build_embedding_matcher(self):
         embedding_atoms = list()
         section_map = {"cell": -1, "pc-cluster": -1, "qm-cluster": -1}
+        lattice_vectors = list()
 
         def store_pc_cell_index(backend, gIndex, section):
             del embedding_atoms[:]
             self.__index_peecm_unit_cell = gIndex
+            if len(lattice_vectors) != 3:
+                logger.error("didn't get expected 3 lattice vectors for PCEEM embedding cell:"
+                             + str(len(lattice_vectors)))
+            else:
+                lattice = np.ndarray(shape=(3, 3))
+                for i, vector in enumerate(lattice_vectors[0:3]):
+                    lattice[i, :] = vector[:]
+                backend.addArrayValues("lattice_vectors", lattice, gIndex, unit="bohr")
             if section_map["cell"] != -1:
                 backend.addValue("system_to_system_ref", gIndex, section_map["cell"])
                 backend.addValue("system_to_system_kind", "point charge unit cell for embedding",
@@ -212,7 +221,7 @@ class SystemParser(object):
             backend.addArrayValues("atom_positions", pos, unit="angstrom")
             backend.addArrayValues("atom_labels", np.asarray(labels, dtype=str))
             backend.addArrayValues("atom_atom_number", atom_numbers)
-            if self.__index_peecm_pc_cluster == -1:
+            if self.__index_peecm_unit_cell == gIndex:
                 backend.addArrayValues("x_turbomole_pceem_charges", charges)
 
         def add_point_charge(backend, groups):
@@ -232,6 +241,24 @@ class SystemParser(object):
                                         charge=0, isotope=0, shells=None, pseudo=None
                                         )
                                    )
+
+        def add_lattice_vector(backend, groups):
+            lattice_vectors.append(tuple(float(x) for x in groups[0:3]))
+
+        lattice_vector = SM(r"\s*("+RE_FLOAT+")"+ 2 * ("\s+("+RE_FLOAT+")")+"\s*$",
+                            name="PCEEM lattice",
+                            repeats=True,
+                            startReAction=add_lattice_vector,
+                            required=True
+                            )
+
+        lattice_setup = SM(r"\s*Cell vectors \(au\):\s*$",
+                           name="PCEEM lattice",
+                           required=True,
+                           subMatchers=[
+                               lattice_vector
+                           ]
+                           )
 
         point_charge_in_unit_cell = SM(r"\s*([A-z]+)"+4*("\s+("+RE_FLOAT+")")+"\s*$",
                                        name="point charge",
@@ -327,6 +354,7 @@ class SystemParser(object):
                   subMatchers=[
                       SM(r"\s*\|\s*M. Sierka and A. Burow\s*\|\s*$", name="credits"),
                       header,
+                      lattice_setup,
                       point_charge_cell,
                       point_charge_cluster,
                       shifted_qm_cluster
