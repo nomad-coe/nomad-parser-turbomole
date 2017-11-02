@@ -111,6 +111,7 @@ class SystemParser(object):
             pos = np.ndarray(shape=(len(self.__atoms), 3), dtype=float)
             labels = list()
             atom_numbers = np.ndarray(shape=(len(self.__atoms),), dtype=float)
+            backend.addValue("number_of_atoms", len(self.__atoms))
             for i, atom in enumerate(self.__atoms):
                 pos[i, 0:3] = (atom.x, atom.y, atom.z)
                 labels.append(atom.elem)
