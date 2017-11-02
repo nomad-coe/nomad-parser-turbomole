@@ -2,6 +2,7 @@ import logging
 import numpy as np
 from nomadcore.simple_parser import SimpleMatcher as SM
 import nomadcore.elements as elements
+from TurbomoleCommon import RE_FLOAT
 
 logger = logging.getLogger("nomad.turbomoleParser")
 
@@ -39,6 +40,9 @@ class SystemParser(object):
         self.__context = context
         self.__backend = None
         self.__index_qm_geo = -1
+        self.__index_peecm_unit_cell = -1
+        self.__index_peecm_pc_cluster = -1
+        self.__index_peecm_qm_cluster = -1
         self.__index_basis_set = -1
         self.__atoms = list()
         self.__basis_sets = dict()
@@ -57,6 +61,21 @@ class SystemParser(object):
     # match builders
 
     def finalize_sections(self):
+        if -1 < self.__index_peecm_unit_cell < self.__index_qm_geo:
+            index = self.__backend.openSection("section_system_to_system_refs")
+            self.__backend.addValue("system_to_system_kind", "periodic point charges for embedding")
+            self.__backend.addValue("system_to_system_ref", self.__index_peecm_unit_cell)
+            self.__backend.closeSection("section_system_to_system_refs", index)
+        if -1 < self.__index_peecm_pc_cluster < self.__index_qm_geo:
+            index = self.__backend.openSection("section_system_to_system_refs")
+            self.__backend.addValue("system_to_system_kind", "removed point charge cluster")
+            self.__backend.addValue("system_to_system_ref", self.__index_peecm_pc_cluster)
+            self.__backend.closeSection("section_system_to_system_refs", index)
+        if -1 < self.__index_peecm_qm_cluster < self.__index_qm_geo:
+            index = self.__backend.openSection("section_system_to_system_refs")
+            self.__backend.addValue("system_to_system_kind", "shifted embedded QM cluster")
+            self.__backend.addValue("system_to_system_ref", self.__index_peecm_qm_cluster)
+            self.__backend.closeSection("section_system_to_system_refs", index)
         self.__backend.closeSection("section_system", self.__index_qm_geo)
 
     def write_basis_set_mapping(self):
@@ -141,6 +160,144 @@ class SystemParser(object):
                       SM("\s*center of nuclear mass", startReAction=finalize_data)
                   ],
                   startReAction=open_section if not simple_mode else None,
+                  )
+
+    def build_embedding_matcher(self):
+        embedding_atoms = list()
+        section_map = {"cell": -1, "pc-cluster": -1, "qm-cluster": -1}
+
+        def store_pc_cell_index(backend, gIndex, section):
+            del embedding_atoms[:]
+            self.__index_peecm_unit_cell = gIndex
+            if section_map["cell"] != -1:
+                backend.addValue("system_to_system_ref", gIndex, section_map["cell"])
+                backend.addValue("system_to_system_kind", "point charge unit cell for embedding",
+                                 section_map["cell"])
+                backend.closeSection("section_system_to_system_refs", section_map["cell"])
+
+        def store_pc_cluster_index(backend, gIndex, section):
+            del embedding_atoms[:]
+            self.__index_peecm_pc_cluster = gIndex
+            if section_map["pc-cluster"] != -1:
+                backend.addValue("system_to_system_ref", gIndex, section_map["pc-cluster"])
+                backend.addValue("system_to_system_kind", "removed cluster from point charge cell",
+                                 section_map["pc-cluster"])
+                backend.closeSection("section_system_to_system_refs", section_map["pc-cluster"])
+
+        def store_qm_cluster_index(backend, gIndex, section):
+            del embedding_atoms[:]
+            self.__index_peecm_qm_cluster = gIndex
+            if section_map["qm-cluster"] != -1:
+                backend.addValue("system_to_system_ref", gIndex, section_map["qm-cluster"])
+                backend.addValue("system_to_system_kind", "shifted embedded QM cluster",
+                                 section_map["qm-cluster"])
+                backend.closeSection("section_system_to_system_refs", section_map["qm-cluster"])
+
+        def write_data(backend, gIndex, section):
+            pos = np.ndarray(shape=(len(embedding_atoms), 3), dtype=float)
+            labels = list()
+            backend.addValue("number_of_atoms", len(embedding_atoms))
+            atom_numbers = np.ndarray(shape=(len(embedding_atoms),), dtype=float)
+            charges = np.ndarray(shape=(len(embedding_atoms),), dtype=float)
+            for i, atom in enumerate(embedding_atoms):
+                pos[i, 0:3] = (atom.x, atom.y, atom.z)
+                labels.append(atom.elem)
+                atom_numbers[i] = elements.get_atom_number(atom.elem)
+                charges[i] = atom.charge
+            backend.addArrayValues("atom_positions", pos, unit="angstrom")
+            backend.addArrayValues("atom_labels", np.asarray(labels, dtype=str))
+            backend.addArrayValues("atom_atom_number", atom_numbers)
+            if self.__index_peecm_pc_cluster == -1:
+                backend.addArrayValues("x_turbomole_pceem_charges", charges)
+
+        def add_point_charge(backend, groups):
+            embedding_atoms.append(Atom(x=groups[1], y=groups[2], z=groups[3], elem=groups[0],
+                                        charge=groups[4], isotope=0, shells=None, pseudo=None
+                                        )
+                                   )
+
+        def add_removed_point_charge(backend, groups):
+            embedding_atoms.append(Atom(x=groups[1], y=groups[2], z=groups[3], elem=groups[0],
+                                        charge=0, isotope=0, shells=None, pseudo=None
+                                        )
+                                   )
+
+        def add_shifted_qm_atom(backend, groups):
+            embedding_atoms.append(Atom(x=groups[1], y=groups[2], z=groups[3], elem=groups[0],
+                                        charge=0, isotope=0, shells=None, pseudo=None
+                                        )
+                                   )
+
+        point_charge_in_unit_cell = SM(r"\s*([A-z]+)"+4*("\s+("+RE_FLOAT+")")+"\s*$",
+                                       name="point charge",
+                                       repeats=True,
+                                       startReAction=add_point_charge,
+                                       required=True)
+        point_charge_cell = SM(r"\s*Redefined unit cell content \(au\):\s*$",
+                               name="header",
+                               sections=["section_system"],
+                               subMatchers=[
+                                   SM(r"\s*Label\s+Cartesian\s+Coordinates\s+Charge\s*$",
+                                      name="header"),
+                                   point_charge_in_unit_cell
+                               ],
+                               onOpen={"section_system": store_pc_cell_index},
+                               onClose={"section_system": write_data}
+        )
+
+        removed_point_charge = SM(r"\s*([A-z]+)"+6*("\s+("+RE_FLOAT+")")+"\s*$",
+                                  name="removed point charge",
+                                  repeats=True,
+                                  startReAction=add_removed_point_charge,
+                                  required=True)
+        point_charge_cluster = SM(r"\s*PC cluster transformed to the center of cell 0 \(au\):\s*$",
+                                  name="header",
+                                  sections=["section_system"],
+                                  subMatchers=[
+                                      SM(r"\s*Label\s+Cartesian\s+Coordinates\s+Cell\s+Indices\s*$",
+                                         name="header"),
+                                      removed_point_charge
+                                  ],
+                                  onOpen={"section_system": store_pc_cluster_index},
+                                  onClose={"section_system": write_data}
+                                  )
+
+        shifted_qm_atom = SM(r"\s*([A-z]+)"+3*("\s+("+RE_FLOAT+")")+"\s*$",
+                             name="shifted QM atom",
+                             repeats=True,
+                             startReAction=add_shifted_qm_atom,
+                             required=True)
+        shifted_qm_cluster = SM(r"\s*QM cluster transformed to the center of cell 0 \(au\):\s*$",
+                                name="header",
+                                sections=["section_system"],
+                                subMatchers=[
+                                    SM(r"\s*Atom\s+Cartesian\s+Coordinates\s*$",
+                                       name="header"),
+                                    shifted_qm_atom
+                                ],
+                                onOpen={"section_system": store_qm_cluster_index},
+                                onClose={"section_system": write_data}
+                                )
+
+        def prepare_links(backend, groups):
+            if self.__index_qm_geo != -1:
+                section_map["cell"] = backend.openSection("section_system_to_system_refs")
+                section_map["pc-cluster"] = backend.openSection("section_system_to_system_refs")
+                section_map["qm-cluster"] = backend.openSection("section_system_to_system_refs")
+
+        header = SM(r"\s*\+-+\s*Parameters\s*-*\+\s*$",
+                    name="PCEEM parameters",
+                    startReAction=prepare_links)
+
+        return SM(r"\s*\|\s*EMBEDDING IN PERIODIC POINT CHARGES\s*\|\s*$",
+                  name="embedding (PEECM)",
+                  subMatchers=[
+                      SM(r"\s*\|\s*M. Sierka and A. Burow\s*\|\s*$", name="credits"),
+                      header,
+                      point_charge_cell,
+                      point_charge_cluster,
+                      shifted_qm_cluster
+                  ]
                   )
 
     def build_orbital_basis_matcher(self):

@@ -183,7 +183,7 @@ def build_root_parser(context):
                                name = "Embedding",
                                subMatchers=[
                                    #SmearingOccupation,
-                                   build_embedding_matcher()
+                                   context["geo"].build_embedding_matcher(),
                                ]
                                ),
                             SM(name='TotalEnergyForEachScfCycle',
@@ -285,36 +285,6 @@ def build_total_energy_perturbation_theory_matcher():
                forwardMatch = True,
                subMatchers = [
                    SM (r"\s*Total Energy\s*\:\s*(?P<x_turbomole_PT_total_energy_final__eV>[-+0-9.eEdD]+)")
-
-               ])
-
-def build_embedding_matcher():
-    return SM (name = 'PeriodicEmbedding',
-               startReStr = r"\s*\+------------------------ Parameters ------------------------\+",
-               forwardMatch = True,
-               subMatchers = [
-                   SM (r"\s*Maximum multipole moment used               :\s*(?P<x_turbomole_max_multipole_moment>[0-9]+)"),
-                   SM (r"\s*Multipole precision parameter               :\s*(?P<x_turbomole_multipole_precision_parameter>[-+0-9.eEdD]+)"),
-                   SM (r"\s*Minimum separation between cells            :\s*(?P<x_turbomole_min_separation_cells>[-+0-9.eEdD]+)"),
-                   SM (r"\s*\+-----------------------------------------------------------\+\s*"),
-                   SM (r"\s*Charge Neutrality tolerance :\s*(?P<x_turbomole_charge_neutrality_tol>[-+0-9.eEdD]+)"),
-                   SM (r"\s*Total charge                :\s*(?P<x_turbomole_total_charge>[-+0-9.eEdD]+)"),
-                   SM (startReStr = r"\s*\|\s*Coordinates of all systems centered about cell 0\s*\|",
-                       subMatchers = [
-                           SM (r"\s*Redefined unit cell content (au):"),
-                           SM (r"\s*Label               Cartesian Coordinates            Charge"),
-                           SM (r"\s*(?P<x_turbomole_embed_geometry_atom_label>[a-zA-Z]+)\s+"
-                               "(?P<x_turbomole_embed_geometry_atom_positions_x__angstrom>[-+0-9.]+)\s+"
-                               "(?P<x_turbomole_embed_geometry_atom_positions_y__angstrom>[-+0-9.]+)\s+"
-                               "(?P<x_turbomole_embed_geometry_atom_positions_z__angstrom>[-+0-9.]+)\s+"
-                               "(?P<x_turbomole_embed_geometry_atom_charge>[-+0-9.]+)", repeats = True),
-                           SM (r"\s*QM cluster transformed to the center of cell 0 \(au\)\:"),
-                           SM (r"\s*Atom               Cartesian Coordinates"),
-                           SM (r"\s*(?P<x_turbomole_embed_qm_cluster_geometry_atom_label>[a-zA-Z]+)\s+"
-                               "(?P<x_turbomole_embed_qm_cluster_geometry_atom_positions_x__angstrom>[-+0-9.]+)\s+"
-                               "(?P<x_turbomole_embed_qm_cluster_geometry_atom_positions_y__angstrom>[-+0-9.]+)\s+"
-                               "(?P<x_turbomole_embed_qm_cluster_geometry_atom_positions_z__angstrom>[-+0-9.]+)\s+",repeats = True)
-                       ])
 
                ])
 
