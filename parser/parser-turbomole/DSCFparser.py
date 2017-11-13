@@ -26,16 +26,18 @@ class DSCFparser(object):
                         repeats=True,
                         )
         header = SM(name="Credits",
-                    startReStr=r"\s*idea & directorship : reinhart ahlrichs",
+                    startReStr=r"\s*d s c f - program\s*$",
                     coverageIgnore=True,
                     subMatchers=[references],
                     endReStr=r"\s*\+-+\+"
                     )
 
-        return SM(name="DSCF module",
-                  startReStr=r"\s*d s c f - program",
+        return SM(self.__context.get_module_invocation("dscf"),
+                  name="DSCF module",
                   sections=["section_single_configuration_calculation"],
+                  startReAction=self.__context.process_module_invocation,
                   subMatchers=[
+                      self.__context.build_start_time_matcher(),
                       header,
                       self.__context["method"].build_uhf_matcher(),
                       self.__context["geo"].build_qm_geometry_matcher(),
@@ -47,7 +49,7 @@ class DSCFparser(object):
                       Common.build_total_energy_matcher(),
                       self.__context["orbitals"].build_eigenstate_matcher(),
                       self.__build_profiling_matcher(),
-                      Common.build_end_time_matcher("dscf")
+                      self.__context.build_end_time_matcher("dscf")
                   ]
                   )
 

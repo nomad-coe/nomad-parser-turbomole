@@ -25,17 +25,19 @@ class RIDFTparser(object):
                         coverageIgnore=True,
                         repeats=True,
                         )
-        header = SM(name="Credits",
-                    startReStr=r"\s*DFT program with RI approximation\s*$",
+        header = SM(r"\s*r i d f t\s*$",
+                    name="Credits",
                     coverageIgnore=True,
                     subMatchers=[references],
                     endReStr=r"\s*\+-+\+"
                     )
 
-        return SM(name="RIDFT module",
-                  startReStr=r"\s*r i d f t\s*$",
+        return SM(self.__context.get_module_invocation("ridft"),
+                  name="RIDFT module",
                   sections=["section_single_configuration_calculation"],
+                  startReAction=self.__context.process_module_invocation,
                   subMatchers=[
+                      self.__context.build_start_time_matcher(),
                       header,
                       self.__context["method"].build_uhf_matcher(),
                       self.__context["geo"].build_qm_geometry_matcher(),
@@ -46,7 +48,7 @@ class RIDFTparser(object):
                       self.__build_scf_cycle_matcher(),
                       Common.build_total_energy_matcher(),
                       self.__context["orbitals"].build_eigenstate_matcher(),
-                      Common.build_end_time_matcher("ridft")
+                      self.__context.build_end_time_matcher("ridft")
                   ]
                   )
 

@@ -3,11 +3,12 @@
 from builtins import object
 import setup_paths
 import numpy as np
+from datetime import datetime
 import nomadcore.ActivateLogging
 from nomadcore.caching_backend import CachingLevel
 from nomadcore.simple_parser import AncillaryParser, mainFunction
 from nomadcore.simple_parser import SimpleMatcher as SM
-from TurbomoleCommon import get_metaInfo
+from TurbomoleCommon import get_metaInfo, RE_FLOAT, RE_DATE, RE_TIME
 import logging, os
 import TurbomoleCommon as Common
 from SystemParser import SystemParser
@@ -30,6 +31,14 @@ class TurbomoleParserContext(object):
         self.__data = dict()
         self.functionals = []
         self.generic = False
+        self.__general_info = {
+            "module": list(),
+            "version": list(),
+            "node": list(),
+            "clean_end": list(),
+            "start_time": list(),
+            "end_time": list()
+        }
 
     def __getitem__(self, item):
         return self.__data[item]
@@ -42,6 +51,76 @@ class TurbomoleParserContext(object):
     def __iter__(self):
         for key, sub_parser in self.__data.items():
             yield key, sub_parser
+
+    def get_module_invocation(self, module_name):
+        return r"\s*("+module_name+")\s*\(([a-zA-Z0-9.]+)\) \: " \
+                                   r"TURBOMOLE ([a-zA-Z0-9.]+)"
+
+    def process_module_invocation(self, backend, groups):
+        self.__general_info["version"].append(groups[2])
+        self.__general_info["node"].append(groups[1])
+        self.__general_info["module"].append(groups[0])
+
+    def build_start_time_matcher(self):
+
+        def set_start_time(backend, groups):
+            utc_time = datetime.strptime("%sT%sZ" % (groups[0], groups[1]), "%Y-%m-%dT%H:%M:%S.%fZ")
+            epoch_time = (utc_time - datetime(1970, 1, 1)).total_seconds()
+            self.__general_info["start_time"].append(epoch_time)
+
+        return SM(r"\s*("+RE_DATE+r")\s+("+RE_TIME+r")\s*$",
+                  name="start timestamp",
+                  startReAction=set_start_time
+                  )
+
+    def build_end_time_matcher(self, module_name):
+
+        def get_run_time(backend, groups):
+            time = float(groups[3])
+            if groups[2]:
+                time += 60.0 * float(groups[2])
+            if groups[1]:
+                time += 3600.0 * float(groups[1])
+            if groups[0]:
+                time += 86400.0 * float(groups[0])
+            backend.addRealValue("time_calculation", time)
+
+        def set_clean_end(backend, groups):
+            self.__general_info["clean_end"].append(True)
+
+        def set_end_time(backend, groups):
+            utc_time = datetime.strptime("%sT%sZ" % (groups[0], groups[1]), "%Y-%m-%dT%H:%M:%S.%fZ")
+            epoch_time = (utc_time - datetime(1970, 1, 1)).total_seconds()
+            self.__general_info["end_time"].append(epoch_time)
+
+        walltime = SM(r"\s*total\s+wall-time\s*:(?:\s*("+RE_FLOAT+")\s+days)?"
+                      r"(?:\s*("+RE_FLOAT+")\s+hours)?"
+                      r"(?:\s*("+RE_FLOAT+")\s+minutes\s+and)?"
+                      r"(?:\s*("+RE_FLOAT+")\s+seconds)\s*$",
+                      name="wall time",
+                      startReAction=get_run_time
+                      )
+        clean_end = SM("\s*\*{4}\s*"+module_name+"\s*:\s*all\s+done\s*\*{4}\s*$",
+                       name="clean end",
+                       startReAction=set_clean_end
+                       )
+        end_date = SM(r"\s*("+RE_DATE+r")\s+("+RE_TIME+r")\s*$",
+                      name="end timestamp",
+                      startReAction=set_end_time
+                      )
+
+        return SM(r"\s*total\s+cpu-time\s*:(?:\s*("+RE_FLOAT+")\s+days)?"
+                  r"(?:\s*("+RE_FLOAT+")\s+hours)?"
+                  r"(?:\s*("+RE_FLOAT+")\s+minutes\s+and)?"
+                  r"(?:\s*("+RE_FLOAT+")\s+seconds)\s*$",
+                  name="cpu time",
+                  subMatchers=[
+                      walltime,
+                      SM(r"\s*-{20,}\s*$", name="<format>", coverageIgnore=True),
+                      clean_end,
+                      end_date
+                  ]
+                  )
 
     def initialize_values(self):
         """Initializes the values of certain variables.
@@ -72,6 +151,24 @@ class TurbomoleParserContext(object):
         self.initialize_values()
 
     def onClose_section_run(self, backend, gIndex, section):
+        if len(self.__general_info["version"]) > 0:
+            if len(set(self.__general_info["version"])) > 1:
+                logger.warning("found inconsistent code version information: %s" %
+                               self.__general_info["version"])
+            backend.addValue("program_version", self.__general_info["version"][0])
+            if len(self.__general_info["clean_end"]) != len(self.__general_info["module"]):
+                backend.addValue("run_clean_end", False)
+            else:
+                backend.addValue("run_clean_end", False in self.__general_info["clean_end"])
+        if len(self.__general_info["node"]) > 0:
+            if len(set(self.__general_info["node"])) > 1:
+                logger.warning("found inconsistent host node information: %s" %
+                               self.__general_info["node"])
+            backend.addValue("x_turbomole_nodename", self.__general_info["node"][0])
+        if len(self.__general_info["start_time"]) > 0:
+            backend.addRealValue("time_run_date_start", min(self.__general_info["start_time"]))
+        if len(self.__general_info["end_time"]) > 0:
+            backend.addRealValue("time_run_date_end", min(self.__general_info["end_time"]))
 
         if self.geoConvergence is not None:
             backend.addValue('x_turbomole_geometry_optimization_converged', self.geoConvergence)
@@ -142,7 +239,7 @@ def build_root_parser(context):
        SimpleMatcher that parses main file of Turbomole.
     """
 
-    def set_backends(backend, groups):
+    def set_backends(backend, gIndex, section):
         for key, sub_parser in context:
             sub_parser.set_backend(backend)
 
@@ -152,26 +249,31 @@ def build_root_parser(context):
     MethodParser(context)
 
     def set_generic(backend, groups):
+        context.process_module_invocation(backend, groups)
         context.generic = True
 
-    modules = r"(?:aoforce|cosmoprep|egrad|evib|frog|gradsammel|" \
-              r"hesssammel|moloch|odft|relax|rirpa|sdg|thirdsammel|" \
-              r"vibration|atbandbta|define|eigerf|fdetools|grad|haga|" \
-              r"intense|mpgrad|proper|ricc2|rimp2|ruecker|statpt|tm2molden|" \
-              r"woelfling|bsseenergy|freeh|gradruecker|riper|hessruecker|" \
-              r"mdprep|mpshift|rdgrad|ricctools|rimp2prep|sammler|thirdruecker|uff)"
+    def finalize_system_data(backend, gIndex, section):
+        context["geo"].finalize_sections()
+        context["method"].close_method_section()
+
+    generic_modules = r"aoforce|cosmoprep|egrad|evib|frog|gradsammel|" \
+                      r"hesssammel|moloch|odft|relax|rirpa|sdg|thirdsammel|" \
+                      r"vibration|atbandbta|define|eigerf|fdetools|grad|haga|" \
+                      r"intense|mpgrad|proper|ricc2|rimp2|ruecker|statpt|tm2molden|" \
+                      r"woelfling|bsseenergy|freeh|gradruecker|riper|hessruecker|" \
+                      r"mdprep|mpshift|rdgrad|ricctools|rimp2prep|sammler|thirdruecker|uff"
 
     # matches only those subprograms without dedicated parser
-    generic = SM(r"\s*"+modules+"\s*"
-                 r"\([a-zA-Z0-9.]+\) \: TURBOMOLE [a-zA-Z0-9.]+",
+    generic = SM(context.get_module_invocation(generic_modules),
                  name="NewRun",
                  sections=["section_single_configuration_calculation"],
+                 onClose={"section_single_configuration_calculation": finalize_system_data},
                  startReAction=set_generic,
                  subMatchers=[
                      SM(name="general info",
                          startReStr=r"\s*Copyright \(C\) ",
                          subMatchers=[
-                             Common.build_start_time_matcher(),
+                             context.build_start_time_matcher(),
                              context["geo"].build_qm_geometry_matcher(simple_mode=True),
                              context["geo"].build_orbital_basis_matcher(),
                              context["method"].build_dft_functional_matcher(simple_mode=True)
@@ -207,41 +309,29 @@ def build_root_parser(context):
                             build_total_energy_perturbation_theory_matcher()
                         ]
                         ),
-                     Common.build_end_time_matcher(modules)
+                     context.build_end_time_matcher("(?:"+generic_modules+")")
                  ]
                  )
-    modules = [
-        Common.build_start_time_matcher(),
-        ESCFparser(context).build_parser(),
-        DSCFparser(context).build_parser(),
-        RIDFTparser(context).build_parser(),
-        generic,
-        build_relaxation_matcher()
-    ]
 
-    return SM (name = 'Root',
-               startReStr = "",
-               forwardMatch = True,
-               weak = True,
-               sections = ['section_run'],
-               subMatchers = [
-                   SM(name = 'ProgramHeader',
-                      startReStr = r"\s*(?:aoforce|cosmoprep|egrad|evib|frog|gradsammel|"
-                                   r"hesssammel|moloch|odft|relax|ridft|rirpa|sdg|thirdsammel|"
-                                   r"vibration|atbandbta|define|eigerf|fdetools|grad|haga|"
-                                   r"intense|mpgrad|proper|ricc2|rimp2|ruecker|statpt|tm2molden|"
-                                   r"woelfling|bsseenergy|dscf|escf|freeh|gradruecker|"
-                                   r"hessruecker|mdprep|mpshift|rdgrad|ricctools|rimp2prep|"
-                                   r"sammler|thirdruecker|uff)\s*"
-                                   r"\((?P<x_turbomole_nodename>[a-zA-Z0-9.]+)\) \: "
-                                   r"TURBOMOLE (?P<program_version>[a-zA-Z0-9.]+)",
-                      forwardMatch=True,  # necessary to match runs without dedicated subparser
-                      startReAction=set_backends,
-                      fixedStartValues={'program_name': 'turbomole', 'program_basis_set_type': 'GTOs'},
-                      subMatchers=modules
-                      )
-               ]
-               )
+    return SM(name="Root",
+              startReStr="",
+              forwardMatch=True,
+              sections=["section_run"],
+              onOpen={"section_run": set_backends},
+              # subFlags=SM.SubFlags.Unordered,
+              fixedStartValues={
+                  'program_name': 'turbomole',
+                  'program_basis_set_type': 'GTOs'
+              },
+              subMatchers=[
+                  ESCFparser(context).build_parser(),
+                  DSCFparser(context).build_parser(),
+                  RIDFTparser(context).build_parser(),
+                  generic
+                  # build_relaxation_matcher()
+              ]
+              )
+
 
 def build_forces_matcher():
     return SM (name = 'AtomicForces',

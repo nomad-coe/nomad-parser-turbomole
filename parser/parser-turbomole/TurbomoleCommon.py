@@ -2,7 +2,6 @@ import logging
 
 from nomadcore.local_meta_info import loadJsonFile, InfoKindEl
 from nomadcore.simple_parser import SimpleMatcher as SM
-from datetime import datetime
 
 logger = logging.getLogger("nomad.turbomoleParser")
 
@@ -15,68 +14,6 @@ RE_FLOAT = r"(?:[+-]?(?:[0-9]+.?[0-9]*|[0-9]*.[0-9]+)(?:[DEde][+-]?[0-9]+)?)"
 RE_DATE = r"(?:[0-9]{4}-[0-9]{2}-[0-9]{2})"
 RE_TIME = r"(?:(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\.[0-9]{3})"
 
-
-def build_start_time_matcher():
-
-    def set_start_time(backend, groups):
-        utc_time = datetime.strptime("%sT%sZ" % (groups[0], groups[1]), "%Y-%m-%dT%H:%M:%S.%fZ")
-        epoch_time = (utc_time - datetime(1970, 1, 1)).total_seconds()
-        backend.addRealValue("time_run_date_start", epoch_time)
-
-    return SM(r"\s*("+RE_DATE+r")\s+("+RE_TIME+r")\s*$",
-              name="start timestamp",
-              startReAction=set_start_time
-              )
-
-
-def build_end_time_matcher(module_name):
-
-    def get_run_time(backend, groups):
-        time = float(groups[3])
-        if groups[2]:
-            time += 60.0 * float(groups[2])
-        if groups[1]:
-            time += 3600.0 * float(groups[1])
-        if groups[0]:
-            time += 86400.0 * float(groups[0])
-        backend.addRealValue("time_calculation", time)
-
-    def set_clean_end(backend, groups):
-        backend.addValue("run_clean_end", True)
-
-    def set_end_time(backend, groups):
-        utc_time = datetime.strptime("%sT%sZ" % (groups[0], groups[1]), "%Y-%m-%dT%H:%M:%S.%fZ")
-        epoch_time = (utc_time - datetime(1970, 1, 1)).total_seconds()
-        backend.addRealValue("time_run_date_end", epoch_time)
-
-    walltime = SM(r"\s*total\s+wall-time\s*:(?:\s*("+RE_FLOAT+")\s+days)?"
-                  r"(?:\s*("+RE_FLOAT+")\s+hours)?"
-                  r"(?:\s*("+RE_FLOAT+")\s+minutes\s+and)?"
-                  r"(?:\s*("+RE_FLOAT+")\s+seconds)\s*$",
-                  name="wall time",
-                  startReAction=get_run_time
-                  )
-    clean_end = SM("\s*\*{4}\s*"+module_name+"\s*:\s*all\s+done\s*\*{4}\s*$",
-                   name="clean end",
-                   startReAction=set_clean_end
-                   )
-    end_date = SM(r"\s*("+RE_DATE+r")\s+("+RE_TIME+r")\s*$",
-                  name="end timestamp",
-                  startReAction=set_end_time
-                  )
-
-    return SM(r"\s*total\s+cpu-time\s*:(?:\s*("+RE_FLOAT+")\s+days)?"
-              r"(?:\s*("+RE_FLOAT+")\s+hours)?"
-              r"(?:\s*("+RE_FLOAT+")\s+minutes\s+and)?"
-              r"(?:\s*("+RE_FLOAT+")\s+seconds)\s*$",
-              name="cpu time",
-              subMatchers=[
-                  walltime,
-                  SM(r"\s*-{20,}\s*$", name="<format>", coverageIgnore=True),
-                  clean_end,
-                  end_date
-              ]
-              )
 
 def build_total_energy_matcher():
     def set_current_energy(backend, groups):

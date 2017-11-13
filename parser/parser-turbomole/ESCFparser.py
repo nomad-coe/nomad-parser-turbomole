@@ -3,6 +3,7 @@
 import logging
 import re
 from nomadcore.simple_parser import SimpleMatcher as SM
+import TurbomoleCommon as Common
 
 logger = logging.getLogger("nomad.turbomoleParser")
 
@@ -22,20 +23,24 @@ class ESCFparser(object):
                         coverageIgnore=True,
                         repeats=True,
                         )
-        header = SM(name="Credits",
-                    startReStr=r"\s*quantum chemistry group",
+        header = SM(r"\s*e s c f\s*$",
+                    name="Credits",
                     coverageIgnore=True,
                     subMatchers=[references],
                     endReStr=r"\s*\+-+\+"
                     )
 
-        return SM(name="ESCF module",
-                  startReStr=r"\s*e s c f",
+        return SM(self.__context.get_module_invocation("escf"),
+                  name="ESCF module",
+                  startReAction=self.__context.process_module_invocation,
+                  sections=["section_single_configuration_calculation"],
                   subMatchers=[
+                      self.__context.build_start_time_matcher(),
                       header,
                       self.__context["geo"].build_qm_geometry_matcher(),
                       self.__context["geo"].build_orbital_basis_matcher(),
-                      self.__build_gw_matcher()
+                      self.__build_gw_matcher(),
+                      self.__context.build_end_time_matcher("escf")
                   ]
                   )
 
@@ -84,7 +89,7 @@ class ESCFparser(object):
         return SM(name="GW",
                   startReStr=r"\s*GW version\s+[0-9]+",
                   # startReStr = r"\s*GW version\s+(?P<x_turbomole_version_GW>[0-9]+)",
-                  sections=["section_single_configuration_calculation", "section_eigenvalues"],
+                  sections=["section_eigenvalues"],
                   subMatchers=[
                       params,
                       self.__build_gw_qp_states_matcher_no_spin()

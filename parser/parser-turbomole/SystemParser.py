@@ -81,7 +81,8 @@ class SystemParser(object):
             self.__backend.addValue("embedded_system", True, self.__index_qm_geo)
         for key, value in self.__pceem_parameters.items():
             self.__backend.addValue(key, value, self.__index_qm_geo)
-        self.__backend.closeSection("section_system", self.__index_qm_geo)
+        if self.__index_qm_geo != -1:
+            self.__backend.closeSection("section_system", self.__index_qm_geo)
 
     def write_basis_set_mapping(self):
         """the caller is responsible for opening the enclosing
