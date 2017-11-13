@@ -16,6 +16,9 @@ class DSCFparser(object):
         self.__context = context
         self.__backend = None
 
+    def purge_data(self):
+        pass
+
     def set_backend(self, backend):
         self.__backend = backend
 
@@ -139,16 +142,14 @@ class DSCFparser(object):
                            ]
                            )
 
-        return SM(r"\s*STARTING INTEGRAL EVALUATION FOR 1st SCF ITERATION",
+        return SM(r"\s*scf convergence criterion : increment of total energy <\s*"+RE_FLOAT+"\s*$",
                   name="HF/DFT SCF",
                   required=True,
                   subMatchers=[
                       SM("\s*time elapsed for pre-SCF steps : cpu\s+([0-9]+\.[0-9]+)\s+sec",
-                         name="SCF preparation",
-                         required=True),
+                         name="SCF preparation"),
                       SM("\s*wall\s+([0-9]+\.[0-9]+)\s+sec",
-                         name="SCF preparation",
-                         required=True),
+                         name="SCF preparation"),
                       scf_iteration
                   ],
                   startReAction=finalize_system_data

@@ -48,6 +48,16 @@ class SystemParser(object):
         self.__basis_sets = dict()
         self.__pceem_parameters = dict()
 
+    def purge_data(self):
+        self.__index_qm_geo = -1
+        self.__index_peecm_unit_cell = -1
+        self.__index_peecm_pc_cluster = -1
+        self.__index_peecm_qm_cluster = -1
+        self.__index_basis_set = -1
+        self.__atoms = list()
+        self.__basis_sets = dict()
+        self.__pceem_parameters = dict()
+
     def set_backend(self, backend):
         self.__backend = backend
 

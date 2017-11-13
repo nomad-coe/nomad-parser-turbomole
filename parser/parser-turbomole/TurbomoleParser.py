@@ -52,11 +52,17 @@ class TurbomoleParserContext(object):
         for key, sub_parser in self.__data.items():
             yield key, sub_parser
 
+    def purge_subparsers(self):
+        for sub_parser in self.__data.values():
+            sub_parser.purge_data()
+
     def get_module_invocation(self, module_name):
         return r"\s*("+module_name+")\s*\(([a-zA-Z0-9.]+)\) \: " \
                                    r"TURBOMOLE ([a-zA-Z0-9.]+)"
 
     def process_module_invocation(self, backend, groups):
+        self.purge_subparsers()
+        self.generic = False
         self.__general_info["version"].append(groups[2])
         self.__general_info["node"].append(groups[1])
         self.__general_info["module"].append(groups[0])
@@ -318,7 +324,7 @@ def build_root_parser(context):
               forwardMatch=True,
               sections=["section_run"],
               onOpen={"section_run": set_backends},
-              # subFlags=SM.SubFlags.Unordered,
+              subFlags=SM.SubFlags.Unordered,
               fixedStartValues={
                   'program_name': 'turbomole',
                   'program_basis_set_type': 'GTOs'

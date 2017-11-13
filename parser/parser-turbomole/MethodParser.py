@@ -35,6 +35,13 @@ class MethodParser(object):
         self.__method = None
         self.__functional = None
 
+    def purge_data(self):
+        self.__spin_channels = 1
+        self.__k_points = 1
+        self.__index_method = -1
+        self.__method = None
+        self.__functional = None
+
     def set_backend(self, backend):
         self.__backend = backend
 

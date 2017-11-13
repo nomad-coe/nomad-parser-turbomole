@@ -16,6 +16,9 @@ class RIDFTparser(object):
         self.__context = context
         self.__backend = None
 
+    def purge_data(self):
+        pass
+
     def set_backend(self, backend):
         self.__backend = backend
 

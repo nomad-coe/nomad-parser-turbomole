@@ -55,6 +55,14 @@ class OrbitalParser(object):
         self.__eigenstates = list()
         self.__eigenstates_staging = list()
 
+    def purge_data(self):
+        self.__index_eigenvalues = 0
+        self.__num_orbitals = 0
+        self.__current_spin_channel = -1
+        self.__current_k_point = 0
+        self.__eigenstates = list()
+        self.__eigenstates_staging = list()
+
     def set_backend(self, backend):
         self.__backend = backend
 
