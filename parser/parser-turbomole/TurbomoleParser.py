@@ -17,6 +17,7 @@ from MethodParser import MethodParser
 from ESCFparser import ESCFparser
 from DSCFparser import DSCFparser
 from RIDFTparser import RIDFTparser
+from RICC2parser import RICC2parser
 
 ############################################################
 # This is the parser for the main file of turbomole.
@@ -333,6 +334,7 @@ def build_root_parser(context):
                   ESCFparser(context).build_parser(),
                   DSCFparser(context).build_parser(),
                   RIDFTparser(context).build_parser(),
+                  RICC2parser(context).build_parser(),
                   generic
                   # build_relaxation_matcher()
               ]
