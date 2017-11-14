@@ -74,8 +74,8 @@ class OrbitalParser(object):
     # parsing functions
 
     def __write_eigenvalues(self, backend, gIndex, section):
-        num_k_points = self.__context["method"].num_kpoints()
-        num_spin = self.__context["method"].spin_channels()
+        num_k_points = self.__context["method"].k_points
+        num_spin = self.__context["method"].spin_channels
         num_eigenvalues = 0
         for spin in range(0, num_spin):
             for k_point in range(0, num_k_points):
