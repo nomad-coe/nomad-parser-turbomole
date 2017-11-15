@@ -47,6 +47,7 @@ class GRADparser(object):
                       self.__context["method"].build_dft_functional_matcher(),
                       self.build_gradient_calculation_start_matcher(),
                       self.__context["gradient"].build_gradient_matcher(),
+                      Common.build_profiling_matcher(r"\s*grad(?:\.all)? profiling\s*$"),
                       self.__context.build_end_time_matcher("grad")
                   ]
                   )

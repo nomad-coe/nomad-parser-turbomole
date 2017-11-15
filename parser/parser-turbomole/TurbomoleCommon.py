@@ -60,6 +60,27 @@ def build_total_energy_matcher():
               )
 
 
+def build_profiling_matcher(title_regex):
+
+    return SM(title_regex,
+              name="profiling",
+              coverageIgnore=True,
+              subMatchers=[
+                  SM(r"\s*-{20,}\s*$", name="<format>", coverageIgnore=True),
+                  SM(r"\s*module\s+cpu\s+total\s+\(s\)\s+%\s+wall\s+total\s+\(s\)\s+%\s*$",
+                     name="profiling",
+                     coverageIgnore=True
+                     ),
+                  SM(r"\s*[A-z0-9\._+-]+(?: [A-z0-9\._+-]+)?(?:\s+"+RE_FLOAT+"){4}\s*$",
+                     name="profiling",
+                     repeats=True,
+                     coverageIgnore=True
+                     ),
+              ]
+              )
+
+
+
 def build_controlinout_matcher():
     return SM (name = 'ControlInOut',
                startReStr = r"\s*\|\s*basis set information\s",
