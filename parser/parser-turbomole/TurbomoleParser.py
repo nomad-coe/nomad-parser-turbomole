@@ -11,9 +11,10 @@ from nomadcore.simple_parser import SimpleMatcher as SM
 from TurbomoleCommon import get_metaInfo, RE_FLOAT, RE_DATE, RE_TIME
 import logging, os
 import TurbomoleCommon as Common
-from SystemParser import SystemParser
-from OrbitalParser import OrbitalParser
+from GradientParser import GradientParser
 from MethodParser import MethodParser
+from OrbitalParser import OrbitalParser
+from SystemParser import SystemParser
 from ESCFparser import ESCFparser
 from DSCFparser import DSCFparser
 from RIDFTparser import RIDFTparser
@@ -251,6 +252,7 @@ def build_root_parser(context):
             sub_parser.set_backend(backend)
 
     # shared subparsers created here are automatically stored in the context
+    GradientParser(context)
     SystemParser(context)
     OrbitalParser(context)
     MethodParser(context)
@@ -302,7 +304,6 @@ def build_root_parser(context):
                                     Common.build_total_energy_matcher()
                                 ]),
                             context["orbitals"].build_eigenstate_matcher(),
-                            build_forces_matcher(),
                         ]),
                      SM(r"\s*Energy of reference wave function is",
                         name="PostHFTotalEnergies",
@@ -310,12 +311,7 @@ def build_root_parser(context):
                             build_total_energy_coupled_cluster_matcher()
                         ]
                         ),
-                     SM(r"\s*\|\s*MP2 relaxed",
-                        name="PTTotalEnergies",
-                        subMatchers=[
-                            build_total_energy_perturbation_theory_matcher()
-                        ]
-                        ),
+                     context["gradient"].build_gradient_matcher(),
                      context.build_end_time_matcher("(?:"+generic_modules+")")
                  ]
                  )
@@ -339,16 +335,6 @@ def build_root_parser(context):
                   # build_relaxation_matcher()
               ]
               )
-
-
-def build_forces_matcher():
-    return SM (name = 'AtomicForces',
-               repeats =True,
-               startReStr = r"\s*ATOM\s*CARTESIAN GRADIENTS",
-               #forwardMatch = True,
-               subMatchers = [
-                   SM (r"\s*(?:[0-9]+)\s*(?:[a-z]+)\s*(?P<x_turbomole_atom_forces_raw_x__hartree_bohr_1>[-+0-9.eEdD]+)\s*(?P<x_turbomole_atom_forces_raw_y__hartree_bohr_1>[-+0-9.eEdD]+)\s*(?P<x_turbomole_atom_forces_raw_z__hartree_bohr_1>[-+0-9.eEdD]+)", repeats = True)
-               ])
 
 def build_occupation_smearing_matcher():
     return SM (name = "smearing",
@@ -374,15 +360,6 @@ def build_total_energy_coupled_cluster_matcher():
                    SM (r"\s*\*\s*Final CC2 energy\s*\:\s*(?P<x_turbomole_CC2_total_energy_final__eV>[-+0-9.eEdD]+)"),
                    SM (r"\s*\*\s*Final CCSD\(T\) energy\s*\:\s*(?P<x_turbomole_CCSDparT_total_energy_final__eV>[-+0-9.eEdD]+)"),
                    SM (r"\s*\*\s*D1 diagnostic \(CCSD\)\s*\:\s*(?P<x_turbomole_D1_diagnostic>[-+0-9.eEdD]+)")
-
-               ])
-
-def build_total_energy_perturbation_theory_matcher():
-    return SM (name = 'TotalEnergyPT',
-               startReStr = r"\s*\|*\s*| natural orb",
-               forwardMatch = True,
-               subMatchers = [
-                   SM (r"\s*Total Energy\s*\:\s*(?P<x_turbomole_PT_total_energy_final__eV>[-+0-9.eEdD]+)")
 
                ])
 

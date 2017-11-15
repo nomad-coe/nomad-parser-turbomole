@@ -15,9 +15,9 @@ class RICC2parser(object):
     __wavefunction_models_map = {
         "MP2": "MP2",
         "CCS": "CCS",
-        "CIS": None,  # TODO: truncated CI is not listed as valid ESM on the wiki
-        "CIS(D)": None,
-        "CIS(Dinf)": None,
+        "CIS": "CIS",
+        "CIS(D)": "CISD",
+        "CIS(Dinf)": "CISD",
         "ADC(2)": "MP2",  # TODO: check paper to verify this mapping
         "CC2": "CCSD"
     }
@@ -59,6 +59,7 @@ class RICC2parser(object):
                       self.build_wave_function_model_matcher(),
                       self.build_ref_energy_matcher(),
                       self.build_ground_state_first_order_properties_matcher(),
+                      self.__context["gradient"].build_gradient_matcher(),
                       self.__context.build_end_time_matcher("ricc2")
                   ]
                   )
