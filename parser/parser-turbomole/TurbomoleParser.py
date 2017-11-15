@@ -17,6 +17,7 @@ from OrbitalParser import OrbitalParser
 from SystemParser import SystemParser
 from ESCFparser import ESCFparser
 from DSCFparser import DSCFparser
+from GRADparser import GRADparser
 from RIDFTparser import RIDFTparser
 from RICC2parser import RICC2parser
 
@@ -329,6 +330,7 @@ def build_root_parser(context):
               subMatchers=[
                   ESCFparser(context).build_parser(),
                   DSCFparser(context).build_parser(),
+                  GRADparser(context).build_parser(),
                   RIDFTparser(context).build_parser(),
                   RICC2parser(context).build_parser(),
                   generic

@@ -48,6 +48,7 @@ object TurbomoleParser extends SimpleExternalParserGenerator(
     "parser-turbomole/SystemParser.py",
     "parser-turbomole/DSCFparser.py",
     "parser-turbomole/ESCFparser.py",
+    "parser-turbomole/GRADparser.py",
     "parser-turbomole/RICC2parser.py",
     "parser-turbomole/RIDFTparser.py",
     "parser-turbomole/TurbomoleParser.py",
