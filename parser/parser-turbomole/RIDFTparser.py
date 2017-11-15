@@ -35,6 +35,8 @@ class RIDFTparser(object):
                     endReStr=r"\s*\+-+\+"
                     )
 
+        auxbasis_title = r"\s*RI-J\s+AUXILIARY\s+BASIS\s+SET\s+information\s*:\s*$"
+
         return SM(self.__context.get_module_invocation("ridft"),
                   name="RIDFT module",
                   sections=["section_single_configuration_calculation"],
@@ -45,6 +47,9 @@ class RIDFTparser(object):
                       self.__context["method"].build_uhf_matcher(),
                       self.__context["geo"].build_qm_geometry_matcher(),
                       self.__context["geo"].build_orbital_basis_matcher(),
+                      self.__context["geo"].build_auxiliary_basis_matcher(),
+                      # TODO: verify if this auxbasis title is used in official releases
+                      self.__context["geo"].build_auxiliary_basis_matcher(auxbasis_title),
                       self.__context["orbitals"].build_ir_rep_matcher(),
                       self.__context["method"].build_dft_functional_matcher(),
                       self.__context["geo"].build_embedding_matcher(),

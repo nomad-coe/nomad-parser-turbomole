@@ -46,6 +46,7 @@ class SystemParser(object):
         self.__index_basis_set = -1
         self.__atoms = list()
         self.__basis_sets = dict()
+        self.__auxbasis_sets = dict()
         self.__pceem_parameters = dict()
 
     def purge_data(self):
@@ -56,6 +57,7 @@ class SystemParser(object):
         self.__index_basis_set = -1
         self.__atoms = list()
         self.__basis_sets = dict()
+        self.__auxbasis_sets = dict()
         self.__pceem_parameters = dict()
 
     def set_backend(self, backend):
@@ -129,6 +131,9 @@ class SystemParser(object):
                 mapping[i] = self.__basis_sets[atom.elem].index
         self.__backend.addArrayValues("mapping_section_basis_set_atom_centered", mapping)
         self.__backend.closeSection("section_basis_set", self.__index_basis_set)
+
+    def write_method_basis_set_mapping(self):
+        pass
 
     def build_qm_geometry_matcher(self, simple_mode=False):
 
@@ -372,7 +377,18 @@ class SystemParser(object):
                   ]
                   )
 
-    def build_orbital_basis_matcher(self):
+    def build_orbital_basis_matcher(self, title_regex=None):
+        if not title_regex:
+            title_regex = r"\s*\|\s*basis\s+set\s+information\s*\|"
+        return self.__build_basis_matcher(False, title_regex)
+
+    def build_auxiliary_basis_matcher(self, title_regex=None):
+        if not title_regex:
+            title_regex = r"\s*\|\s*Auxiliary\s+basis\s+set\s+information\s*\|"
+        return self.__build_basis_matcher(True, title_regex)
+
+    def __build_basis_matcher(self, is_auxbasis, title_regex):
+        basis_type = "Auxiliary Basis" if is_auxbasis else "Orbital Basis"
 
         class LocalBasisData(object):
             spherical = False
@@ -384,9 +400,12 @@ class SystemParser(object):
             # TODO: support assignment of different basis sets to atoms of the same element
             index = backend.openSection("section_basis_set_atom_centered")
             key = groups[0].capitalize()
-            self.__basis_sets[key] = BasisSet(name=groups[4], index=index,
-                                              cartesian=not LocalBasisData.spherical,
-                                              num_atoms=groups[1])
+            basis_set = BasisSet(name=groups[4], index=index,
+                                 cartesian=not LocalBasisData.spherical, num_atoms=groups[1])
+            if is_auxbasis:
+                self.__auxbasis_sets[key] = basis_set
+            else:
+                self.__basis_sets[key] = basis_set
             atom_number = elements.get_atom_number(groups[0].capitalize())
             backend.addValue("basis_set_atom_centered_short_name", groups[4], index)
             backend.addValue("basis_set_atom_number", atom_number, index)
@@ -414,25 +433,26 @@ class SystemParser(object):
                                   startReAction=set_spherical_basis
                                   )
 
-        return SM(name="Orbital Basis",
-                  startReStr=r"\s*\|\s*basis set information\s*\|",
+        return SM(title_regex,
+                  name=basis_type,
                   subMatchers=[
                       SM(r"\s*\+----*\+", name="<format>", coverageIgnore=True),
                       gauss_type_spherical,
-                      SM(r"\s*type\s+atoms\s+prim\s+cont\s+basis", name="Orbital Basis"),
+                      SM(r"\s*type\s+atoms\s+prim\s+cont\s+basis",
+                         name=basis_type),
                       SM(r"\s*----*", name="<format>", coverageIgnore=True),
                       basis,
                       SM(r"\s*----*", name="<format>", coverageIgnore=True),
                       SM(r"\s*total:\s*([0-9]+)\s+([0-9]+)\s+([0-9]+)",
-                         name="Orbital Basis"),
+                         name=basis_type),
                       SM(r"\s*----*", name="<format>", coverageIgnore=True),
                       SM(r"\s*total number of primitive shells\s*:\s*([0-9]+)",
-                         name="Orbital Basis"),
+                         name=basis_type),
                       SM(r"\s*total number of contracted shells\s*:\s*([0-9]+)",
-                         name="Orbital Basis"),
+                         name=basis_type),
                       SM(r"\s*total number of cartesian basis functions\s*:\s*([0-9]+)",
-                         name="Orbital Basis"),
+                         name=basis_type),
                       SM(r"\s*total number of SCF-basis functions\s*:\s*([0-9]+)",
-                         name="Orbital Basis"),
+                         name=basis_type),
                   ]
                   )

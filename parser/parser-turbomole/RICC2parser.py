@@ -57,6 +57,7 @@ class RICC2parser(object):
                       self.__context["geo"].build_qm_geometry_matcher(),
                       self.__context["geo"].build_orbital_basis_matcher(),
                       self.build_wave_function_model_matcher(),
+                      self.__context["geo"].build_auxiliary_basis_matcher(),
                       self.build_ref_energy_matcher(),
                       self.build_ground_state_first_order_properties_matcher(),
                       self.__context["gradient"].build_gradient_matcher(),
