@@ -59,8 +59,7 @@ class TurbomoleParserContext(object):
             sub_parser.purge_data()
 
     def get_module_invocation(self, module_name):
-        return r"\s*("+module_name+")\s*\(([a-zA-Z0-9.]+)\) \: " \
-                                   r"TURBOMOLE ([a-zA-Z0-9.]+)"
+        return r"\s*("+module_name+")\s*\(([^\)]+)\)\s*\:\s*TURBOMOLE\s+([a-zA-Z0-9.]+)"
 
     def process_module_invocation(self, backend, groups):
         self.purge_subparsers()
@@ -275,6 +274,7 @@ def build_root_parser(context):
     # matches only those subprograms without dedicated parser
     generic = SM(context.get_module_invocation(generic_modules),
                  name="NewRun",
+                 repeats=True,
                  sections=["section_single_configuration_calculation"],
                  onClose={"section_single_configuration_calculation": finalize_system_data},
                  startReAction=set_generic,
