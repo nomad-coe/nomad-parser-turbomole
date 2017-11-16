@@ -1,5 +1,4 @@
 import logging
-import math
 import re
 from functools import total_ordering
 import numpy as np
@@ -13,9 +12,9 @@ logger = logging.getLogger("nomad.turbomoleParser")
 class _Forces(object):
 
     def __init__(self, elem, index):
-        self.x = math.nan
-        self.y = math.nan
-        self.z = math.nan
+        self.x = float("nan")
+        self.y = float("nan")
+        self.z = float("nan")
         self.elem = elem.capitalize()
         self.index = int(index)
 
