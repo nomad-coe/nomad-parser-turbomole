@@ -44,6 +44,7 @@ class GRADparser(object):
                       header,
                       self.__context["geo"].build_qm_geometry_matcher(),
                       self.__context["geo"].build_orbital_basis_matcher(),
+                      self.__context["orbitals"].build_ir_rep_matcher(),
                       self.__context["method"].build_dft_functional_matcher(),
                       self.build_gradient_calculation_start_matcher(),
                       self.__context["gradient"].build_gradient_matcher(),
