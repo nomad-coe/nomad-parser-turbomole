@@ -11,17 +11,6 @@ logger = logging.getLogger("nomad.turbomoleParser")
 
 class RICC2parser(object):
 
-    # TODO: verify mapping of approximations to general Electronic Structure Method class
-    __wavefunction_models_map = {
-        "MP2": "MP2",
-        "CCS": "CCS",
-        "CIS": "CIS",
-        "CIS(D)": "CISD",
-        "CIS(Dinf)": "CISD",
-        "ADC(2)": "MP2",  # TODO: check paper to verify this mapping
-        "CC2": "CCSD"
-    }
-
     def __init__(self, context, key="ricc2"):
         context[key] = self
         self.__context = context
@@ -47,68 +36,20 @@ class RICC2parser(object):
                     endReStr=r"\s*\+-+\+"
                     )
 
-        return SM(self.__context.get_module_invocation("ricc2"),
-                  name="RICC2 module",
-                  sections=["section_single_configuration_calculation"],
-                  startReAction=self.__context.process_module_invocation,
-                  subMatchers=[
-                      self.__context.build_start_time_matcher(),
-                      header,
-                      self.__context["geo"].build_qm_geometry_matcher(),
-                      self.__context["geo"].build_orbital_basis_matcher(),
-                      self.build_wave_function_model_matcher(),
-                      self.__context["geo"].build_auxiliary_basis_matcher(),
-                      self.build_ref_energy_matcher(),
-                      self.build_ground_state_first_order_properties_matcher(),
-                      self.__context["gradient"].build_gradient_matcher(),
-                      self.__context.build_end_time_matcher("ricc2")
-                  ]
-                  )
+        sub_matchers = [
+            self.__context.build_start_time_matcher(),
+            header,
+            self.__context["geo"].build_qm_geometry_matcher(),
+            self.__context["geo"].build_orbital_basis_matcher(),
+            self.__context["method"].build_wave_function_model_matcher(),
+            self.__context["geo"].build_auxiliary_basis_matcher(),
+            self.build_ref_energy_matcher(),
+            self.build_ground_state_first_order_properties_matcher(),
+            self.__context["gradient"].build_gradient_matcher(),
+            self.__context.build_end_time_matcher("ricc2")
+        ]
 
-    def build_wave_function_model_matcher(self):
-
-        def finalize_system_data(backend, gIndex, section):
-            """link the section_single_configuration to the method and system sections"""
-            self.__context["geo"].finalize_sections()
-            self.__context["geo"].write_basis_set_mapping()
-            backend.addValue("single_configuration_to_calculation_method_ref", gIndex)
-            backend.addValue("single_configuration_calculation_to_system_ref",
-                             self.__context["geo"].index_qm_geo())
-
-        def determine_spin(backend, groups):
-            if groups[0] == "restricted closed":
-                pass
-            elif groups[0] == "restricted open":
-                self.__context["method"].spin_channels = 2
-            elif groups[0] == "unrestricted open":
-                self.__context["method"].spin_channels = 2
-            else:
-                logger.error("found unknown spin configuration in RICC2: " + groups[0])
-
-        def extract_wf_method(backend, groups):
-            method = self.__wavefunction_models_map.get(groups[0], None)
-            if method:
-                backend.addValue("electronic_structure_method", method)
-            else:
-                logger.error("unknown wave-function model encountered: %s - %s" % groups)
-
-        method_matcher = SM(r"\s*([^\s].*[^\s])\s*-\s*([^\s].*[^\s])\s*$",
-                            name="WF model",
-                            required=True,
-                            startReAction=extract_wf_method
-                            )
-
-        # TODO: extract further RICC2 parameters?
-        return SM(r"\s*([^ ].+)\s+shell\s+calculation\s+for\s+the\s+wavefunction\s+models:\s*$",
-                  startReAction=determine_spin,
-                  sections=["section_method"],
-                  name="spin treatment",
-                  onClose={"section_method": finalize_system_data},
-                  required=True,
-                  subMatchers=[
-                      method_matcher
-                  ]
-                  )
+        return self.__context.build_module_matcher("ricc2", sub_matchers)
 
     def build_ref_energy_matcher(self):
 

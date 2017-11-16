@@ -35,38 +35,16 @@ class GRADparser(object):
                     endReStr=r"\s*\+-+\+"
                     )
 
-        return SM(self.__context.get_module_invocation("grad"),
-                  name="GRAD module",
-                  sections=["section_single_configuration_calculation"],
-                  startReAction=self.__context.process_module_invocation,
-                  subMatchers=[
-                      self.__context.build_start_time_matcher(),
-                      header,
-                      self.__context["geo"].build_qm_geometry_matcher(),
-                      self.__context["geo"].build_orbital_basis_matcher(),
-                      self.__context["orbitals"].build_ir_rep_matcher(),
-                      self.__context["method"].build_dft_functional_matcher(),
-                      self.build_gradient_calculation_start_matcher(),
-                      self.__context["gradient"].build_gradient_matcher(),
-                      Common.build_profiling_matcher(r"\s*grad(?:\.all)? profiling\s*$"),
-                      self.__context.build_end_time_matcher("grad")
-                  ]
-                  )
+        sub_matchers = [
+            self.__context.build_start_time_matcher(),
+            header,
+            self.__context["geo"].build_qm_geometry_matcher(),
+            self.__context["geo"].build_orbital_basis_matcher(),
+            self.__context["orbitals"].build_ir_rep_matcher(),
+            self.__context["method"].build_dft_functional_matcher(),
+            self.__context["gradient"].build_gradient_matcher(),
+            Common.build_profiling_matcher(r"\s*grad(?:\.all)? profiling\s*$"),
+            self.__context.build_end_time_matcher("grad")
+        ]
 
-    def build_gradient_calculation_start_matcher(self):
-
-        def finalize_system_data(backend, groups):
-            """link the section_single_configuration to the method and system sections"""
-            self.__context["geo"].finalize_sections()
-            self.__context["geo"].write_basis_set_mapping()
-            backend.addValue("single_configuration_to_calculation_method_ref",
-                             self.__context["method"].index_method())
-            backend.addValue("single_configuration_calculation_to_system_ref",
-                             self.__context["geo"].index_qm_geo())
-            self.__context["method"].close_method_section()
-
-        return SM(r"\s*SCF\s+ENERGY\s+GRADIENT\s+with\s+respect\s+to\s+NUCLEAR\s+COORDINATES\s*$",
-                  startReAction=finalize_system_data,
-                  name="gradient start",
-                  required=True
-                  )
+        return self.__context.build_module_matcher("grad", sub_matchers)

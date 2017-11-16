@@ -59,15 +59,35 @@ class TurbomoleParserContext(object):
         for sub_parser in self.__data.values():
             sub_parser.purge_data()
 
-    def get_module_invocation(self, module_name):
-        return r"\s*("+module_name+")\s*\(([^\)]+)\)\s*\:\s*TURBOMOLE\s+([a-zA-Z0-9.]+)"
+    def build_module_matcher(self, module_name, subMatchers):
+        return SM(r"\s*("+module_name+")\s*\(([^\)]+)\)\s*\:\s*TURBOMOLE\s+([a-zA-Z0-9.]+)",
+                  name=module_name + " module",
+                  sections=[
+                      "section_single_configuration_calculation",
+                      "section_system",
+                      "section_method"
+                  ],
+                  onClose={
+                      "section_system": self.__close_section_system,
+                      "section_method": self.__close_section_method
+                  },
+                  startReAction=self.__process_module_invocation,
+                  subMatchers=subMatchers
+                  )
 
-    def process_module_invocation(self, backend, groups):
+    def __process_module_invocation(self, backend, groups):
         self.purge_subparsers()
         self.generic = False
         self.__general_info["version"].append(groups[2])
         self.__general_info["node"].append(groups[1])
         self.__general_info["module"].append(groups[0])
+
+    def __close_section_method(self, backend, gIndex, section):
+        backend.addValue("single_configuration_to_calculation_method_ref", gIndex)
+
+    def __close_section_system(self, backend, gIndex, section):
+        self["geo"].write_basis_set_mapping()
+        backend.addValue("single_configuration_calculation_to_system_ref", gIndex)
 
     def build_start_time_matcher(self):
 
@@ -257,14 +277,6 @@ def build_root_parser(context):
     OrbitalParser(context)
     MethodParser(context)
 
-    def set_generic(backend, groups):
-        context.process_module_invocation(backend, groups)
-        context.generic = True
-
-    def finalize_system_data(backend, gIndex, section):
-        context["geo"].finalize_sections()
-        context["method"].close_method_section()
-
     generic_modules = r"aoforce|cosmoprep|egrad|evib|frog|gradsammel|" \
                       r"hesssammel|moloch|odft|relax|rirpa|sdg|thirdsammel|" \
                       r"vibration|atbandbta|define|eigerf|fdetools|grad|haga|" \
@@ -273,49 +285,45 @@ def build_root_parser(context):
                       r"mdprep|mpshift|rdgrad|ricctools|rimp2prep|sammler|thirdruecker|uff"
 
     # matches only those subprograms without dedicated parser
-    generic = SM(context.get_module_invocation(generic_modules),
-                 name="NewRun",
-                 repeats=True,
-                 sections=["section_single_configuration_calculation"],
-                 onClose={"section_single_configuration_calculation": finalize_system_data},
-                 startReAction=set_generic,
-                 subMatchers=[
-                     SM(name="general info",
-                         startReStr=r"\s*Copyright \(C\) ",
-                         subMatchers=[
-                             context.build_start_time_matcher(),
-                             context["geo"].build_qm_geometry_matcher(simple_mode=True),
-                             context["geo"].build_orbital_basis_matcher(),
-                             context["method"].build_dft_functional_matcher(simple_mode=True)
-                         ]),
-                     SM(r"\s*1e\-*integrals will be neglected if expon",
-                        name="Single Config",
-                        subMatchers=[
-                            SM(r"\s*\|\s*EMBEDDING IN PERIODIC POINT CHARGES\s*\|",
-                               name = "Embedding",
-                               subMatchers=[
-                                   #SmearingOccupation,
-                                   context["geo"].build_embedding_matcher(),
-                               ]
-                               ),
-                            SM(name='TotalEnergyForEachScfCycle',
-                                startReStr = r"\s*scf convergence criterion",
-                                subMatchers=[
-                                    #SmearingOccupation,
-                                    Common.build_total_energy_matcher()
-                                ]),
-                            context["orbitals"].build_eigenstate_matcher(),
-                        ]),
-                     SM(r"\s*Energy of reference wave function is",
-                        name="PostHFTotalEnergies",
-                        subMatchers=[
-                            build_total_energy_coupled_cluster_matcher()
-                        ]
-                        ),
-                     context["gradient"].build_gradient_matcher(),
-                     context.build_end_time_matcher("(?:"+generic_modules+")")
-                 ]
-                 )
+
+    sub_matcher = [
+        SM(name="general info",
+           startReStr=r"\s*Copyright \(C\) ",
+           subMatchers=[
+               context.build_start_time_matcher(),
+               context["geo"].build_qm_geometry_matcher(),
+               context["geo"].build_orbital_basis_matcher(),
+               context["method"].build_dft_functional_matcher()
+           ]),
+        SM(r"\s*1e\-*integrals will be neglected if expon",
+           name="Single Config",
+           subMatchers=[
+               SM(r"\s*\|\s*EMBEDDING IN PERIODIC POINT CHARGES\s*\|",
+                  name = "Embedding",
+                  subMatchers=[
+                      #SmearingOccupation,
+                      context["geo"].build_embedding_matcher(),
+                  ]
+                  ),
+               SM(name='TotalEnergyForEachScfCycle',
+                  startReStr = r"\s*scf convergence criterion",
+                  subMatchers=[
+                      #SmearingOccupation,
+                      Common.build_total_energy_matcher()
+                  ]),
+               context["orbitals"].build_eigenstate_matcher(),
+           ]),
+        SM(r"\s*Energy of reference wave function is",
+           name="PostHFTotalEnergies",
+           subMatchers=[
+               build_total_energy_coupled_cluster_matcher()
+           ]
+           ),
+        context["gradient"].build_gradient_matcher(),
+        context.build_end_time_matcher("(?:"+generic_modules+")")
+    ]
+
+    generic = context.build_module_matcher(generic_modules, sub_matcher)
 
     return SM(name="Root",
               startReStr="",

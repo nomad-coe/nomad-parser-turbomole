@@ -33,19 +33,16 @@ class ESCFparser(object):
                     endReStr=r"\s*\+-+\+"
                     )
 
-        return SM(self.__context.get_module_invocation("escf"),
-                  name="ESCF module",
-                  startReAction=self.__context.process_module_invocation,
-                  sections=["section_single_configuration_calculation"],
-                  subMatchers=[
-                      self.__context.build_start_time_matcher(),
-                      header,
-                      self.__context["geo"].build_qm_geometry_matcher(),
-                      self.__context["geo"].build_orbital_basis_matcher(),
-                      self.__build_gw_matcher(),
-                      self.__context.build_end_time_matcher("escf")
-                  ]
-                  )
+        sub_matchers = [
+            self.__context.build_start_time_matcher(),
+            header,
+            self.__context["geo"].build_qm_geometry_matcher(),
+            self.__context["geo"].build_orbital_basis_matcher(),
+            self.__build_gw_matcher(),
+            self.__context.build_end_time_matcher("escf")
+        ]
+
+        return self.__context.build_module_matcher("escf", sub_matchers)
 
     def __build_gw_matcher(self):
         def get_gw_approximation(backend, groups):
@@ -60,19 +57,10 @@ class ESCFparser(object):
             backend.addValue("calculation_method_kind", "perturbative")
             backend.addValue("x_turbomole_gw_approximation", approximations[groups[1]])
 
-        def finalize_system_data(backend, groups):
-            self.__context["geo"].finalize_sections()
-            self.__context["geo"].write_basis_set_mapping()
-            self.__backend.addValue("single_configuration_to_calculation_method_ref",
-                                    backend.get_latest_section("section_method").gIndex)
-            self.__backend.addValue("single_configuration_calculation_to_system_ref",
-                                    self.__context["geo"].index_qm_geo())
-
         params = SM(name="GW parameters",
                     startReStr="\s*par[ae]meters:",  # typo in Turbomole 6.6 output
                     sections=["section_method"],
                     fixedStartValues={"number_of_eigenvalues_kpoints": 1},  # TM has no periodic GW
-                    startReAction=finalize_system_data,
                     subMatchers=[
                         SM(r"\s*number of levels to calculate\s+(?P<number_of_eigenvalues>[0-9]+)",
                            name="num states"),

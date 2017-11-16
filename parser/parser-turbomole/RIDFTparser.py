@@ -37,43 +37,27 @@ class RIDFTparser(object):
 
         auxbasis_title = r"\s*RI-J\s+AUXILIARY\s+BASIS\s+SET\s+information\s*:\s*$"
 
-        return SM(self.__context.get_module_invocation("ridft"),
-                  name="RIDFT module",
-                  sections=["section_single_configuration_calculation"],
-                  startReAction=self.__context.process_module_invocation,
-                  subMatchers=[
-                      self.__context.build_start_time_matcher(),
-                      header,
-                      self.__context["method"].build_uhf_matcher(),
-                      self.__context["geo"].build_qm_geometry_matcher(),
-                      self.__context["geo"].build_orbital_basis_matcher(),
-                      self.__context["geo"].build_auxiliary_basis_matcher(),
-                      # TODO: verify if this auxbasis title is used in official releases
-                      self.__context["geo"].build_auxiliary_basis_matcher(auxbasis_title),
-                      self.__context["orbitals"].build_ir_rep_matcher(),
-                      self.__context["method"].build_dft_functional_matcher(),
-                      self.__context["geo"].build_embedding_matcher(),
-                      self.__build_scf_cycle_matcher(),
-                      Common.build_total_energy_matcher(),
-                      self.__context["orbitals"].build_eigenstate_matcher(),
-                      self.__context.build_end_time_matcher("ridft")
-                  ]
-                  )
+        sub_matchers = [
+            self.__context.build_start_time_matcher(),
+            header,
+            self.__context["method"].build_uhf_matcher(),
+            self.__context["geo"].build_qm_geometry_matcher(),
+            self.__context["geo"].build_orbital_basis_matcher(),
+            self.__context["geo"].build_auxiliary_basis_matcher(),
+            # TODO: verify if this auxbasis title is used in official releases
+            self.__context["geo"].build_auxiliary_basis_matcher(auxbasis_title),
+            self.__context["orbitals"].build_ir_rep_matcher(),
+            self.__context["method"].build_dft_functional_matcher(),
+            self.__context["geo"].build_embedding_matcher(),
+            self.__build_scf_cycle_matcher(),
+            Common.build_total_energy_matcher(),
+            self.__context["orbitals"].build_eigenstate_matcher(),
+            self.__context.build_end_time_matcher("ridft")
+        ]
+
+        return self.__context.build_module_matcher("ridft", sub_matchers)
 
     def __build_scf_cycle_matcher(self):
-
-        def finalize_system_data(backend, groups):
-            """close the system-related sections, add HF method if no DFT usage was specified and
-            link the just opened single_configuration section to the method and system sections"""
-            self.__context["geo"].finalize_sections()
-            self.__context["geo"].write_basis_set_mapping()
-            if self.__context["method"].index_method() == -1:
-                self.__context["method"].add_default_functional()
-            self.__backend.addValue("single_configuration_to_calculation_method_ref",
-                                    self.__context["method"].index_method())
-            self.__backend.addValue("single_configuration_calculation_to_system_ref",
-                                    self.__context["geo"].index_qm_geo())
-            self.__context["method"].close_method_section()
 
         class PreviousCycle(object):
             energy = None
@@ -146,8 +130,8 @@ class RIDFTparser(object):
         return SM(r"\s*Starting SCF iterations\s*$",
                   name="HF/DFT SCF",
                   required=True,
+                  startReAction=self.__context["method"].add_default_functional,
                   subMatchers=[
                       scf_iteration
-                  ],
-                  startReAction=finalize_system_data
+                  ]
                   )

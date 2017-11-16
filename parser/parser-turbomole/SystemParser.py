@@ -39,7 +39,6 @@ class SystemParser(object):
         context[key] = self
         self.__context = context
         self.__backend = None
-        self.__index_qm_geo = -1
         self.__index_peecm_unit_cell = -1
         self.__index_peecm_pc_cluster = -1
         self.__index_peecm_qm_cluster = -1
@@ -50,7 +49,6 @@ class SystemParser(object):
         self.__pceem_parameters = dict()
 
     def purge_data(self):
-        self.__index_qm_geo = -1
         self.__index_peecm_unit_cell = -1
         self.__index_peecm_pc_cluster = -1
         self.__index_peecm_qm_cluster = -1
@@ -65,36 +63,11 @@ class SystemParser(object):
 
     # getter methods
 
-    def index_qm_geo(self):
-        return self.__index_qm_geo
-
     def index_basis_set(self):
         return self.__index_basis_set
 
     # match builders
 
-    def finalize_sections(self):
-        if -1 < self.__index_peecm_unit_cell < self.__index_qm_geo:
-            index = self.__backend.openSection("section_system_to_system_refs")
-            self.__backend.addValue("system_to_system_kind", "periodic point charges for embedding")
-            self.__backend.addValue("system_to_system_ref", self.__index_peecm_unit_cell)
-            self.__backend.closeSection("section_system_to_system_refs", index)
-        if -1 < self.__index_peecm_pc_cluster < self.__index_qm_geo:
-            index = self.__backend.openSection("section_system_to_system_refs")
-            self.__backend.addValue("system_to_system_kind", "removed point charge cluster")
-            self.__backend.addValue("system_to_system_ref", self.__index_peecm_pc_cluster)
-            self.__backend.closeSection("section_system_to_system_refs", index)
-        if -1 < self.__index_peecm_qm_cluster < self.__index_qm_geo:
-            index = self.__backend.openSection("section_system_to_system_refs")
-            self.__backend.addValue("system_to_system_kind", "shifted embedded QM cluster")
-            self.__backend.addValue("system_to_system_ref", self.__index_peecm_qm_cluster)
-            self.__backend.closeSection("section_system_to_system_refs", index)
-        if self.__index_peecm_unit_cell != -1:
-            self.__backend.addValue("embedded_system", True, self.__index_qm_geo)
-        for key, value in self.__pceem_parameters.items():
-            self.__backend.addValue(key, value, self.__index_qm_geo)
-        if self.__index_qm_geo != -1:
-            self.__backend.closeSection("section_system", self.__index_qm_geo)
 
     def write_basis_set_mapping(self):
         """the caller is responsible for opening the enclosing
@@ -135,10 +108,7 @@ class SystemParser(object):
     def write_method_basis_set_mapping(self):
         pass
 
-    def build_qm_geometry_matcher(self, simple_mode=False):
-
-        def open_section(backend, groups):
-            self.__index_qm_geo = backend.openSection("section_system")
+    def build_qm_geometry_matcher(self):
 
         def add_atom(backend, groups):
             self.__atoms.append(Atom(x=groups[0], y=groups[1], z=groups[2], elem=groups[3],
@@ -174,13 +144,11 @@ class SystemParser(object):
 
         return SM(name="geometry",
                   startReStr=r"\s*\|\s+Atomic coordinate, charge and isotope? information\s+\|",
-                  sections=["section_system"] if simple_mode else [],
                   subMatchers=[
                       SM(r"\s*-{20}-*", name="<format>", coverageIgnore=True),
                       SM(header_re, name="atom list", subMatchers=[atom]),
                       SM("\s*center of nuclear mass", startReAction=finalize_data)
-                  ],
-                  startReAction=open_section if not simple_mode else None,
+                  ]
                   )
 
     def build_embedding_matcher(self):
@@ -328,10 +296,10 @@ class SystemParser(object):
                                 )
 
         def prepare_links(backend, groups):
-            if self.__index_qm_geo != -1:
-                section_map["cell"] = backend.openSection("section_system_to_system_refs")
-                section_map["pc-cluster"] = backend.openSection("section_system_to_system_refs")
-                section_map["qm-cluster"] = backend.openSection("section_system_to_system_refs")
+            # if self.__index_qm_geo != -1:
+            section_map["cell"] = backend.openSection("section_system_to_system_refs")
+            section_map["pc-cluster"] = backend.openSection("section_system_to_system_refs")
+            section_map["qm-cluster"] = backend.openSection("section_system_to_system_refs")
 
         def store_max_multipole(backend, groups):
             self.__pceem_parameters["x_turbomole_pceem_max_multipole"] = int(groups[0])

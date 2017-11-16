@@ -25,44 +25,46 @@ class MethodParser(object):
         "B2-PLYP":["HYB_GGA_XC_B2PLYP"]
     }
 
+    # TODO: verify mapping of approximations to general Electronic Structure Method class
+    __wavefunction_models_map = {
+        "MP2": "MP2",
+        "CCS": "CCS",
+        "CIS": "CIS",
+        "CIS(D)": "CISD",
+        "CIS(Dinf)": "CISD",
+        "ADC(2)": "MP2",  # TODO: check paper to verify this mapping
+        "CC2": "CCSD"
+    }
+
+
     def __init__(self, context, key="method"):
         context[key] = self
         self.__context = context
         self.__backend = None
         self.spin_channels = 1
         self.k_points = 1
-        self.__index_method = -1
         self.__method = None
         self.__functional = None
 
     def purge_data(self):
         self.spin_channels = 1
         self.k_points = 1
-        self.__index_method = -1
         self.__method = None
         self.__functional = None
 
     def set_backend(self, backend):
         self.__backend = backend
 
-    # getter methods
-
-    def index_method(self):
-        return self.__index_method
-
     # matcher generation methods
 
-    def close_method_section(self):
-        if self.__index_method != -1:
-            self.__backend.closeSection("section_method", self.__index_method)
-
-    def add_default_functional(self):
-        self.__index_method = self.__backend.openSection("section_method")
-        self.__backend.addValue("electronic_structure_method", "DFT")
-        self.__backend.addValue("calculation_method_kind", "absolute")
-        index = self.__backend.openSection("section_XC_functionals")
-        self.__backend.addValue('XC_functional_name', "HF_X")
-        self.__backend.closeSection("section_XC_functionals", index)
+    def add_default_functional(self, backend, groups):
+        if not self.__method:
+            self.__method = "DFT"
+            self.__backend.addValue("electronic_structure_method", "DFT")
+            self.__backend.addValue("calculation_method_kind", "absolute")
+            index = self.__backend.openSection("section_XC_functionals")
+            self.__backend.addValue('XC_functional_name', "HF_X")
+            self.__backend.closeSection("section_XC_functionals", index)
 
     def build_uhf_matcher(self):
 
@@ -75,7 +77,7 @@ class MethodParser(object):
                   )
 
     # TODO: add support for remaining XC-functionals in Turbomole + custom mixing combinations
-    def build_dft_functional_matcher(self, simple_mode=False):
+    def build_dft_functional_matcher(self):
         exchange = SM(r"\s*exchange:\s*(?P<x_turbomole_functional_type_exchange>.+)")
         correlation = SM(r"\s*correlation:\s*(?P<x_turbomole_functional_type_correlation>.+)")
 
@@ -85,6 +87,7 @@ class MethodParser(object):
             else:
                 self.__functional = ["UNKNOWN"]
                 logger.warning("XC-functional '%s' not known!" % groups[0])
+            self.__method = "DFT"
             backend.addValue("electronic_structure_method", "DFT")
             backend.addValue("calculation_method_kind", "absolute")
             for component in self.__functional:
@@ -92,13 +95,8 @@ class MethodParser(object):
                 backend.addValue('XC_functional_name', component)
                 backend.closeSection("section_XC_functionals", index)
 
-        def start_section(backend, groups):
-            self.__index_method = backend.openSection("section_method")
-
         return SM(r"\s*density functional\s*$",
                   name="DFT functional",
-                  startReAction=start_section if not simple_mode else None,
-                  sections=["section_method"] if simple_mode else [],
                   subMatchers=[
                       SM(r"\s*-{5,}\s*$",
                          name="<format>",
@@ -118,5 +116,41 @@ class MethodParser(object):
                          ),
                       exchange,
                       correlation
+                  ]
+                  )
+
+    def build_wave_function_model_matcher(self):
+
+        def determine_spin(backend, groups):
+            if groups[0] == "restricted closed":
+                pass
+            elif groups[0] == "restricted open":
+                self.__context["method"].spin_channels = 2
+            elif groups[0] == "unrestricted open":
+                self.__context["method"].spin_channels = 2
+            else:
+                logger.error("found unknown spin configuration in : %s" %  groups[0])
+
+        def extract_wf_method(backend, groups):
+            method = self.__wavefunction_models_map.get(groups[0], None)
+            self.__method = method
+            if method:
+                backend.addValue("electronic_structure_method", method)
+            else:
+                logger.error("unknown wave-function model encountered: %s - %s" % groups)
+
+        method_matcher = SM(r"\s*([^\s].*[^\s])\s*-\s*([^\s].*[^\s])\s*$",
+                            name="WF model",
+                            required=True,
+                            startReAction=extract_wf_method
+                            )
+
+        # TODO: extract further RICC2 parameters?
+        return SM(r"\s*([^ ].+)\s+shell\s+calculation\s+for\s+the\s+wavefunction\s+models:\s*$",
+                  startReAction=determine_spin,
+                  name="spin treatment",
+                  required=True,
+                  subMatchers=[
+                      method_matcher
                   ]
                   )
