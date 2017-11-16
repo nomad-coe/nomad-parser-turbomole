@@ -86,6 +86,7 @@ class TurbomoleParserContext(object):
         backend.addValue("single_configuration_to_calculation_method_ref", gIndex)
 
     def __close_section_system(self, backend, gIndex, section):
+        self["geo"].link_embedding_systems_to_qm(gIndex)
         self["geo"].write_basis_set_mapping()
         backend.addValue("single_configuration_calculation_to_system_ref", gIndex)
 

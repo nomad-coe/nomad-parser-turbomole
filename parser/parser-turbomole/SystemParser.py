@@ -68,6 +68,30 @@ class SystemParser(object):
 
     # match builders
 
+    def link_embedding_systems_to_qm(self, qm_geo_index):
+        references = {"section_system": qm_geo_index}
+        if self.__index_peecm_unit_cell != -1:
+            index = self.__backend.openSection("section_system_to_system_refs")
+            self.__backend.addValue("system_to_system_kind", "periodic point charges for embedding")
+            self.__backend.addValue("system_to_system_ref", self.__index_peecm_unit_cell)
+            self.__backend.setSectionInfo("section_system_to_system_refs", index, references)
+            self.__backend.closeSection("section_system_to_system_refs", index)
+        if self.__index_peecm_pc_cluster != -1:
+            index = self.__backend.openSection("section_system_to_system_refs")
+            self.__backend.addValue("system_to_system_kind", "removed point charge cluster")
+            self.__backend.addValue("system_to_system_ref", self.__index_peecm_pc_cluster)
+            self.__backend.setSectionInfo("section_system_to_system_refs", index, references)
+            self.__backend.closeSection("section_system_to_system_refs", index)
+        if self.__index_peecm_qm_cluster != -1:
+            index = self.__backend.openSection("section_system_to_system_refs")
+            self.__backend.addValue("system_to_system_kind", "shifted embedded QM cluster")
+            self.__backend.addValue("system_to_system_ref", self.__index_peecm_qm_cluster)
+            self.__backend.setSectionInfo("section_system_to_system_refs", index, references)
+            self.__backend.closeSection("section_system_to_system_refs", index)
+        if self.__index_peecm_unit_cell != -1:
+            self.__backend.addValue("embedded_system", True, qm_geo_index)
+        for key, value in self.__pceem_parameters.items():
+            self.__backend.addValue(key, value, qm_geo_index)
 
     def write_basis_set_mapping(self):
         """the caller is responsible for opening the enclosing
@@ -153,7 +177,6 @@ class SystemParser(object):
 
     def build_embedding_matcher(self):
         embedding_atoms = list()
-        section_map = {"cell": -1, "pc-cluster": -1, "qm-cluster": -1}
         lattice_vectors = list()
 
         def store_pc_cell_index(backend, gIndex, section):
@@ -167,29 +190,14 @@ class SystemParser(object):
                 for i, vector in enumerate(lattice_vectors[0:3]):
                     lattice[i, :] = vector[:]
                 backend.addArrayValues("lattice_vectors", lattice, gIndex, unit="bohr")
-            if section_map["cell"] != -1:
-                backend.addValue("system_to_system_ref", gIndex, section_map["cell"])
-                backend.addValue("system_to_system_kind", "point charge unit cell for embedding",
-                                 section_map["cell"])
-                backend.closeSection("section_system_to_system_refs", section_map["cell"])
 
         def store_pc_cluster_index(backend, gIndex, section):
             del embedding_atoms[:]
             self.__index_peecm_pc_cluster = gIndex
-            if section_map["pc-cluster"] != -1:
-                backend.addValue("system_to_system_ref", gIndex, section_map["pc-cluster"])
-                backend.addValue("system_to_system_kind", "removed cluster from point charge cell",
-                                 section_map["pc-cluster"])
-                backend.closeSection("section_system_to_system_refs", section_map["pc-cluster"])
 
         def store_qm_cluster_index(backend, gIndex, section):
             del embedding_atoms[:]
             self.__index_peecm_qm_cluster = gIndex
-            if section_map["qm-cluster"] != -1:
-                backend.addValue("system_to_system_ref", gIndex, section_map["qm-cluster"])
-                backend.addValue("system_to_system_kind", "shifted embedded QM cluster",
-                                 section_map["qm-cluster"])
-                backend.closeSection("section_system_to_system_refs", section_map["qm-cluster"])
 
         def write_data(backend, gIndex, section):
             pos = np.ndarray(shape=(len(embedding_atoms), 3), dtype=float)
@@ -295,12 +303,6 @@ class SystemParser(object):
                                 onClose={"section_system": write_data}
                                 )
 
-        def prepare_links(backend, groups):
-            # if self.__index_qm_geo != -1:
-            section_map["cell"] = backend.openSection("section_system_to_system_refs")
-            section_map["pc-cluster"] = backend.openSection("section_system_to_system_refs")
-            section_map["qm-cluster"] = backend.openSection("section_system_to_system_refs")
-
         def store_max_multipole(backend, groups):
             self.__pceem_parameters["x_turbomole_pceem_max_multipole"] = int(groups[0])
 
@@ -325,7 +327,6 @@ class SystemParser(object):
 
         header = SM(r"\s*\+-+\s*Parameters\s*-*\+\s*$",
                     name="PCEEM parameters",
-                    startReAction=prepare_links,
                     subMatchers=[
                         max_multipole,
                         multipole_precision,
