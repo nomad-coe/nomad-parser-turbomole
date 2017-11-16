@@ -11,6 +11,7 @@ from nomadcore.simple_parser import SimpleMatcher as SM
 from TurbomoleCommon import get_metaInfo, RE_FLOAT, RE_DATE, RE_TIME
 import logging, os
 import TurbomoleCommon as Common
+from EmbeddingParser import EmbeddingParser
 from GradientParser import GradientParser
 from MethodParser import MethodParser
 from OrbitalParser import OrbitalParser
@@ -109,7 +110,7 @@ class TurbomoleParserContext(object):
         backend.addValue("single_configuration_to_calculation_method_ref", gIndex)
 
     def __close_section_system(self, backend, gIndex, section):
-        self["geo"].link_embedding_systems_to_qm(gIndex)
+        self["embedding"].link_embedding_systems_to_qm(gIndex)
         self["geo"].write_basis_set_mapping()
         backend.addValue("single_configuration_calculation_to_system_ref", gIndex)
 
@@ -288,10 +289,11 @@ def build_root_parser(context):
             sub_parser.set_backend(backend)
 
     # shared subparsers created here are automatically stored in the context
+    EmbeddingParser(context)
     GradientParser(context)
-    SystemParser(context)
-    OrbitalParser(context)
     MethodParser(context)
+    OrbitalParser(context)
+    SystemParser(context)
 
     generic_modules = r"aoforce|cosmoprep|egrad|evib|frog|gradsammel|" \
                       r"hesssammel|moloch|odft|relax|rirpa|sdg|thirdsammel|" \
@@ -318,7 +320,7 @@ def build_root_parser(context):
                   name = "Embedding",
                   subMatchers=[
                       #SmearingOccupation,
-                      context["geo"].build_embedding_matcher(),
+                      context["embedding"].build_embedding_matcher(),
                   ]
                   ),
                SM(name='TotalEnergyForEachScfCycle',
