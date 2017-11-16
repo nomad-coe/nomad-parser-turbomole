@@ -33,7 +33,6 @@ class TurbomoleParserContext(object):
     def __init__(self):
         self.__data = dict()
         self.functionals = []
-        self.generic = False
         self.__general_info = {
             "module": list(),
             "version": list(),
@@ -77,7 +76,6 @@ class TurbomoleParserContext(object):
 
     def __process_module_invocation(self, backend, groups):
         self.purge_subparsers()
-        self.generic = False
         self.__general_info["version"].append(groups[2])
         self.__general_info["node"].append(groups[1])
         self.__general_info["module"].append(groups[0])
@@ -237,14 +235,6 @@ class TurbomoleParserContext(object):
                 self.geoConvergence = True
             else:
                 self.geoConvergence = False
-
-        if self.generic:
-            if self.secMethodIndex:
-                backend.addValue('single_configuration_to_calculation_method_ref',
-                                 self.secMethodIndex)
-            if self.secSystemDescriptionIndex:
-                backend.addValue('single_configuration_calculation_to_system_ref',
-                                 self.secSystemDescriptionIndex)
 
     def setStartingPointCalculation(self, parser):
         backend = parser.backend
