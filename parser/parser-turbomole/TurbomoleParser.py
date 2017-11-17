@@ -1,4 +1,4 @@
-
+from future.utils import raise_
 
 from builtins import object
 import setup_paths
@@ -6,7 +6,7 @@ import numpy as np
 from datetime import datetime
 import nomadcore.ActivateLogging
 from nomadcore.caching_backend import CachingLevel
-from nomadcore.simple_parser import AncillaryParser, mainFunction
+from nomadcore.simple_parser import AncillaryParser, mainFunction, SkipFileException
 from nomadcore.simple_parser import SimpleMatcher as SM
 from TurbomoleCommon import get_metaInfo, RE_FLOAT, RE_DATE, RE_TIME
 import logging, os
@@ -27,6 +27,13 @@ from RICC2parser import RICC2parser
 ############################################################
 
 logger = logging.getLogger("nomad.turbomoleParser")
+
+# the modules in this list don't generate any output useful for Nomad and are thus not parsed
+IGNORED_MODULES = [
+    "dscfserver",
+    "eiger",
+    "gradserver",
+]
 
 
 class TurbomoleParserContext(object):
@@ -70,48 +77,50 @@ class TurbomoleParserContext(object):
         for sub_parser in self.__data.values():
             sub_parser.purge_data()
 
-    def build_module_matcher(self, module_name, subMatchers):
+    def build_module_matcher(self, module_name, subMatchers, generic=False):
+        def open_section_config(backend, gIndex, section):
+            self.GeneralInfo.index_config.append(gIndex)
+
+        def open_section_method(backend, gIndex, section):
+            self.GeneralInfo.index_method.append(gIndex)
+
+        def open_section_geo(backend, gIndex, section):
+            self.GeneralInfo.index_geo.append(gIndex)
+
+        def close_section_method(backend, gIndex, section):
+            self["geo"].write_basis_set_mapping(self.index_configuration(), gIndex)
+            backend.addValue("single_configuration_to_calculation_method_ref", gIndex)
+
+        def close_section_system(backend, gIndex, section):
+            backend.addValue("single_configuration_calculation_to_system_ref", gIndex)
+
+        def process_module_invocation(backend, groups):
+            if generic:
+                logger.error("Turbomole module without dedicated parser found: %s" % groups[0])
+            self.purge_subparsers()
+            self.GeneralInfo.version.append(groups[2])
+            self.GeneralInfo.node.append(groups[1])
+            self.GeneralInfo.module.append(groups[0])
+
         return SM(r"\s*("+module_name+")\s*\(([^\)]+)\)\s*\:\s*TURBOMOLE\s+([a-zA-Z0-9.]+)",
-                  name=module_name + " module",
+                  name=(module_name if not generic else "unknown") + " module",
                   sections=[
                       "section_single_configuration_calculation",
                       "section_system",
                       "section_method"
                   ],
                   onOpen={
-                      "section_single_configuration_calculation": self.__open_section_config,
-                      "section_system": self.__open_section_geo,
-                      "section_method": self.__open_section_method
+                      "section_single_configuration_calculation": open_section_config,
+                      "section_system": open_section_geo,
+                      "section_method": open_section_method
                   },
                   onClose={
-                      "section_system": self.__close_section_system,
-                      "section_method": self.__close_section_method
+                      "section_system": close_section_system,
+                      "section_method": close_section_method
                   },
-                  startReAction=self.__process_module_invocation,
+                  startReAction=process_module_invocation,
                   subMatchers=subMatchers
                   )
-
-    def __open_section_config(self, backend, gIndex, section):
-        self.GeneralInfo.index_config.append(gIndex)
-
-    def __open_section_method(self, backend, gIndex, section):
-        self.GeneralInfo.index_method.append(gIndex)
-
-    def __open_section_geo(self, backend, gIndex, section):
-        self.GeneralInfo.index_geo.append(gIndex)
-
-    def __process_module_invocation(self, backend, groups):
-        self.purge_subparsers()
-        self.GeneralInfo.version.append(groups[2])
-        self.GeneralInfo.node.append(groups[1])
-        self.GeneralInfo.module.append(groups[0])
-
-    def __close_section_method(self, backend, gIndex, section):
-        self["geo"].write_basis_set_mapping(self.index_configuration(), gIndex)
-        backend.addValue("single_configuration_to_calculation_method_ref", gIndex)
-
-    def __close_section_system(self, backend, gIndex, section):
-        backend.addValue("single_configuration_calculation_to_system_ref", gIndex)
 
     def build_start_time_matcher(self):
 
@@ -294,53 +303,37 @@ def build_root_parser(context):
     OrbitalParser(context)
     SystemParser(context)
 
-    generic_modules = r"aoforce|cosmoprep|egrad|evib|frog|gradsammel|" \
-                      r"hesssammel|moloch|odft|relax|rirpa|sdg|thirdsammel|" \
-                      r"vibration|atbandbta|define|eigerf|fdetools|grad|haga|" \
-                      r"intense|mpgrad|proper|ricc2|rimp2|ruecker|statpt|tm2molden|" \
-                      r"woelfling|bsseenergy|freeh|gradruecker|riper|hessruecker|" \
-                      r"mdprep|mpshift|rdgrad|ricctools|rimp2prep|sammler|thirdruecker|uff"
-
     # matches only those subprograms without dedicated parser
 
     sub_matcher = [
-        SM(name="general info",
-           startReStr=r"\s*Copyright \(C\) ",
-           subMatchers=[
-               context.build_start_time_matcher(),
-               context["geo"].build_qm_geometry_matcher(),
-               context["geo"].build_orbital_basis_matcher(),
-               context["method"].build_dft_functional_matcher()
-           ]),
-        SM(r"\s*1e\-*integrals will be neglected if expon",
-           name="Single Config",
-           subMatchers=[
-               SM(r"\s*\|\s*EMBEDDING IN PERIODIC POINT CHARGES\s*\|",
-                  name = "Embedding",
-                  subMatchers=[
-                      #SmearingOccupation,
-                      context["embedding"].build_embedding_matcher(),
-                  ]
-                  ),
-               SM(name='TotalEnergyForEachScfCycle',
-                  startReStr = r"\s*scf convergence criterion",
-                  subMatchers=[
-                      #SmearingOccupation,
-                      Common.build_total_energy_matcher()
-                  ]),
-               context["orbitals"].build_eigenstate_matcher(),
-           ]),
-        SM(r"\s*Energy of reference wave function is",
-           name="PostHFTotalEnergies",
-           subMatchers=[
-               build_total_energy_coupled_cluster_matcher()
-           ]
-           ),
+        context.build_start_time_matcher(),
+        context["geo"].build_qm_geometry_matcher(),
+        context["geo"].build_orbital_basis_matcher(),
+        context["method"].build_dft_functional_matcher(),
+        context["embedding"].build_embedding_matcher(),
+        Common.build_total_energy_matcher(),
+        context["orbitals"].build_eigenstate_matcher(),
         context["gradient"].build_gradient_matcher(),
-        context.build_end_time_matcher("(?:"+generic_modules+")")
+        context.build_end_time_matcher("[A-z0-9]+")
     ]
+    generic = context.build_module_matcher("[A-z0-9]+", sub_matcher, generic=True)
 
-    generic = context.build_module_matcher(generic_modules, sub_matcher)
+    def ignore_mpi_slaves(backend, groups):
+        if int(groups[0]) > 1:  # RICC2 module starts indexing processes from 0, others at 1
+            backend.closeSection("section_run", 0)
+            raise_(SkipFileException, "MPI slave output only")
+    mpi_slaves = SM(r"\s*this\s+is\s+node-proc.\s+number\s+([0-9]+)\s+running\s+on\s+node\s+"
+                    r"([^ ].*[^ ])\s*$",
+                    name="MPI rank",
+                    startReAction=ignore_mpi_slaves)
+
+    def skip_ignored_modules(backend, groups):
+        backend.closeSection("section_run", 0)
+        raise_(SkipFileException, "MPI slave output only")
+    ignored_modules = "|".join(IGNORED_MODULES)
+    skip_modules = SM(r"\s*("+ignored_modules+")\s*\(([^\)]+)\)\s*\:\s*TURBOMOLE\s+([a-zA-Z0-9.]+)",
+                      name="ignored module",
+                      startReAction=skip_ignored_modules)
 
     return SM(name="Root",
               startReStr="",
@@ -353,6 +346,8 @@ def build_root_parser(context):
                   'program_basis_set_type': 'GTOs'
               },
               subMatchers=[
+                  mpi_slaves,
+                  skip_modules,
                   ESCFparser(context).build_parser(),
                   DSCFparser(context).build_parser(),
                   GRADparser(context).build_parser(),
