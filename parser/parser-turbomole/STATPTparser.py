@@ -9,6 +9,7 @@ import TurbomoleCommon as Common
 logger = logging.getLogger("nomad.turbomoleParser")
 
 
+# TODO: include support for transition state search once sample files are provided
 class STATPTparser(object):
 
     def __init__(self, context, key="statpt"):
@@ -33,7 +34,6 @@ class STATPTparser(object):
                     startReStr=r"\s*this is S T A T P T\s*$",
                     coverageIgnore=True,
                     subMatchers=[references],
-
                     )
 
         # TODO: add geometry and force extractors for STATPT format
@@ -104,9 +104,14 @@ class STATPTparser(object):
                               ]
                               )
 
+        def set_geometry_optimization_flag(backend, gIndex, section):
+            self.__context.set_sampling_mode_section(gIndex)
+
         return SM(r"\s*\*+\s*Stationary\s*point\s*options\s*\*+\s*$",
                   name="Geo Opt Config",
                   sections=["section_sampling_method"],
+                  onOpen={"section_sampling_method": set_geometry_optimization_flag},
+                  fixedStartValues={"sampling_method": "geometry optimization"},
                   subMatchers=[
                       trust_region_max,
                       trust_region_min,

@@ -58,6 +58,7 @@ class TurbomoleParserContext(object):
     def __init__(self):
         self.__data = dict()
         self.__invocations = list()
+        self.__sampling_mode_section = None
 
     def __getitem__(self, item):
         return self.__data[item]
@@ -79,6 +80,9 @@ class TurbomoleParserContext(object):
 
     def index_system(self):
         return self.__invocations[-1].index_geo
+
+    def set_sampling_mode_section(self, index_settings):
+        self.__sampling_mode_section = index_settings
 
     def purge_subparsers(self):
         for sub_parser in self.__data.values():
@@ -193,18 +197,6 @@ class TurbomoleParserContext(object):
                   ]
                   )
 
-    def initialize_values(self):
-        """Initializes the values of certain variables.
-
-        This allows a consistent setting and resetting of the variables,
-        when the parsing starts and when a section_run closes.
-        """
-        self.secMethodIndex = None
-        self.secSystemDescriptionIndex = None
-        self.lastCalculationGIndex = None
-        self.singleConfCalcs = []
-        self.geoConvergence = None
-
     def startedParsing(self, fInName, parser):
         """Function is called when the parsing starts.
 
@@ -218,8 +210,6 @@ class TurbomoleParserContext(object):
         self.fName = fInName
         # save metadata
         self.metaInfoEnv = self.parser.parserBuilder.metaInfoEnv
-        # allows to reset values if the same superContext is used to parse different files
-        self.initialize_values()
 
     def onClose_section_run(self, backend, gIndex, section):
         if len(self.__invocations) > 0:
@@ -236,65 +226,40 @@ class TurbomoleParserContext(object):
                                  min(x.start_time for x in self.__invocations))
             backend.addRealValue("time_run_date_end", max(x.end_time for x in self.__invocations))
 
-        if self.geoConvergence is not None:
-            backend.addValue('x_turbomole_geometry_optimization_converged', self.geoConvergence)
-            if self.geoConvergence is True:
-                sampling_method = "geometry_optimization"
-            elif len(self.singleConfCalcs) > 1:
-                pass
-            else:
-                return
-            samplingGIndex = backend.openSection("section_sampling_method")
-            backend.addValue("sampling_method", sampling_method)
-            backend.closeSection("section_sampling_method", samplingGIndex)
-            frameSequenceGIndex = backend.openSection("section_frame_sequence")
-            backend.addValue("frame_sequence_to_sampling_ref", samplingGIndex)
-            backend.addArrayValues("frame_sequence_local_frames_ref", np.asarray(self.singleConfCalcs))
-            backend.closeSection("section_frame_sequence", frameSequenceGIndex)
+        if self.__sampling_mode_section is not None:
+            index = backend.openSection("section_frame_sequence")
+            backend.addValue("frame_sequence_to_sampling_ref", self.__sampling_mode_section, index)
+            frames_all = np.asarray([x.index_config for x in self.__invocations], dtype=int)
+            frames_kinetic = np.asarray([x.index_config for x in self.__invocations
+                                         if x.kinetic_energy], dtype=int)
+            frames_potential = np.asarray([x.index_config for x in self.__invocations
+                                         if x.potential_energy], dtype=int)
+            energies_kinetic = np.asarray([x.kinetic_energy for x in self.__invocations
+                                if x.kinetic_energy], dtype=float)
+            energies_potential = np.asarray([x.potential_energy for x in self.__invocations
+                                             if x.potential_energy], dtype=float)
+            backend.addValue("number_of_frames_in_sequence", len(self.__invocations), index)
+            backend.addValue("number_of_kinetic_energies_in_sequence", len(energies_kinetic), index)
+            backend.addValue("number_of_potential_energies_in_sequence",
+                             len(energies_potential), index)
+            backend.addArrayValues("frame_sequence_local_frames_ref", frames_all, index)
+            backend.addArrayValues("frame_sequence_kinetic_energy_frames", frames_kinetic, index)
+            backend.addArrayValues("frame_sequence_potential_energy_frames", frames_potential,
+                                   index)
+            backend.addArrayValues("frame_sequence_kinetic_energy", energies_kinetic, index,
+                                   unit="hartree")
+            backend.addArrayValues("frame_sequence_potential_energy", energies_potential, index,
+                                   unit="hartree")
+            backend.closeSection("section_frame_sequence", index)
 
-    def onOpen_section_method(self, backend, gIndex, section):
-        # keep track of the latest method section
-        self.secMethodIndex = gIndex
-
-    ###################################################################
-    # (3.4) onClose for geometry and force (section_system)
-    # todo: maybe we can move the force to onClose_section_single_configuration_calculation in the future. 
-    ###################################################################
-
-    def onOpen_section_system(self, backend, gIndex, section):
-        # keep track of the latest system description section
-        self.secSystemDescriptionIndex = gIndex
-
-    def onOpen_section_single_configuration_calculation(self, backend, gIndex, section):
-        self.singleConfCalcs.append(gIndex)
-
-    def onClose_section_single_configuration_calculation(self, backend, gIndex, section):
-        if section['x_turbomole_geometry_optimization_converged'] is not None:
-            if section['x_turbomole_geometry_optimization_converged'][-1] == 'FULFILLED':
-                self.geoConvergence = True
-            else:
-                self.geoConvergence = False
-
-    def setStartingPointCalculation(self, parser):
-        backend = parser.backend
-        backend.openSection('section_calculation_to_calculation_refs')
-        if self.lastCalculationGIndex:
-            backend.addValue('calculation_to_calculation_ref', self.lastCalculationGIndex)
-        backend.addValue('calculation_to_calculation_kind', 'pertubative GW')
-        #        backend.closeSection('section_calculation_to_calculation_refs')
-        return None
-
-#############################################################
-#################[2] MAIN PARSER STARTS HERE  ###############
-#############################################################
 
 def build_root_parser(context):
-    """Builds the SimpleMatcher to parse the main file of turbomole.
+    """Builds the SimpleMatcher to parse the main files of turbomole.
     Matches for subsections of the output file are generated in dedicated
-    functions below.
+    sub parsers provided as custom classes.
 
     Returns:
-       SimpleMatcher that parses main file of Turbomole.
+       SimpleMatcher that parses the main files of Turbomole.
     """
 
     def set_backends(backend, gIndex, section):
@@ -361,7 +326,6 @@ def build_root_parser(context):
                   RICC2parser(context).build_parser(),
                   STATPTparser(context).build_parser(),
                   generic
-                  # build_relaxation_matcher()
               ]
               )
 
@@ -391,13 +355,6 @@ def build_total_energy_coupled_cluster_matcher():
                    SM (r"\s*\*\s*D1 diagnostic \(CCSD\)\s*\:\s*(?P<x_turbomole_D1_diagnostic>[-+0-9.eEdD]+)")
 
                ])
-
-def build_relaxation_matcher():
-    return SM (name = "relaxation",
-               #sections = ["section_single_configuration_calculation"],
-               sections = ["section_single_configuration_calculation"],
-               startReStr = r"\s*CONVERGENCY CRITERIA (?P<x_turbomole_geometry_optimization_converged>FULFILLED) IN CYCLE",
-               subMatchers = [])
 
 def get_cachingLevelForMetaName(metaInfoEnv):
     """Sets the caching level for the metadata.
