@@ -46,15 +46,25 @@ class MethodParser(object):
         self.k_points = 1
         self.__method = None
         self.__functional = None
+        self.__energy_kinetic = None
+        self.__energy_potential = None
 
     def purge_data(self):
         self.spin_channels = 1
         self.k_points = 1
         self.__method = None
         self.__functional = None
+        self.__energy_kinetic = None
+        self.__energy_potential = None
 
     def set_backend(self, backend):
         self.__backend = backend
+
+    def get_energy_kinetic(self):
+        return self.__energy_kinetic
+
+    def get_energy_potential(self):
+        return self.__energy_potential
 
     # matcher generation methods
 
@@ -170,4 +180,56 @@ class MethodParser(object):
                       energy_matcher
                   ],
                   fixedStartValues={"van_der_Waals_method": "DFT-D3"}
+                  )
+
+    def build_total_energy_matcher(self):
+        def set_current_energy(backend, groups):
+            backend.addRealValue("energy_current", float(groups[0]), unit="hartree")
+
+        def store_kinetic_energy(backend, groups):
+            self.__energy_kinetic = groups[0]
+
+        def store_kinetic_potential(backend, groups):
+            self.__energy_potential = groups[0]
+
+        energy_total = SM(r"\s*\|\s*total energy\s*=\s*(?P<energy_total__hartree>"
+                          +RE_FLOAT+")\s*\|",
+                          name="total energy",
+                          required=True,
+                          startReAction=set_current_energy
+                          )
+        energy_kinetic = SM(r"\s*:\s*kinetic energy\s*=\s*(?P<electronic_kinetic_energy__hartree>"
+                            + RE_FLOAT+")\s*:\s*$",
+                            name="kinetic energy",
+                            required=True,
+                            startReAction=store_kinetic_energy
+                            )
+        energy_potential = SM(r"\s*:\s*potential energy\s*=\s*"
+                              r"(?P<x_turbomole_potential_energy_final__hartree>"+RE_FLOAT+")\s*:\s*$",
+                              name="potential energy",
+                              required=True,
+                              startReAction=store_kinetic_potential
+                              )
+        virial_theorem = SM(r"\s*\:\s*virial theorem\s*\=\s*"
+                            r"(?P<x_turbomole_virial_theorem>"+RE_FLOAT+")\s*:\s*$",
+                            name="virial theorem",
+                            required=True
+                            )
+        wavefunction_norm = SM(r"\s*\:\s*wavefunction norm\s*\=\s*"
+                               r"(?P<x_turbomole_wave_func_norm>"+RE_FLOAT+")\s*:\s*$",
+                               name="wavefunction norm",
+                               required=True
+                               )
+
+        return SM(r"\s*convergence criteria satisfied after\s+"
+                  r"(?P<number_of_scf_iterations>[0-9]+)\s+iterations",
+                  name="SCF end",
+                  required=True,
+                  subMatchers=[
+                      energy_total,
+                      energy_kinetic,
+                      energy_potential,
+                      virial_theorem,
+                      wavefunction_norm
+                  ]
                   )

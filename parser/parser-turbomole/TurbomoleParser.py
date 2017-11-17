@@ -49,10 +49,11 @@ class _GeneralInfo(object):
         self.index_config = None
         self.index_geo = None
         self.index_method = None
+        self.kinetic_energy = None
+        self.potential_energy = None
 
 
 class TurbomoleParserContext(object):
-
 
     def __init__(self):
         self.__data = dict()
@@ -96,6 +97,8 @@ class TurbomoleParserContext(object):
 
         def close_section_method(backend, gIndex, section):
             self["geo"].write_basis_set_mapping(self.index_configuration(), gIndex)
+            self.__invocations[-1].kinetic_energy = self["method"].get_energy_kinetic()
+            self.__invocations[-1].potential_energy = self["method"].get_energy_potential()
             backend.addValue("single_configuration_to_calculation_method_ref", gIndex)
 
         def close_section_system(backend, gIndex, section):
@@ -314,7 +317,7 @@ def build_root_parser(context):
         context["method"].build_dft_functional_matcher(),
         context["embedding"].build_embedding_matcher(),
         context["method"].build_dftd3_vdw_matcher(),
-        Common.build_total_energy_matcher(),
+        context["method"].build_total_energy_matcher(),
         context["orbitals"].build_eigenstate_matcher(),
         context["gradient"].build_gradient_matcher(),
         context.build_end_time_matcher("[A-z0-9]+")
