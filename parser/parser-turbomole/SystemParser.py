@@ -218,7 +218,10 @@ class SystemParser(object):
                    r"([A-z0-9-]+)\s+" \
                    r"\[((?:[0-9]+[spdfghij])+)\|((?:[0-9]+[spdfghij])+)\]"
         basis = SM(basis_re, repeats=True, name="basis assignment", startReAction=add_basis_set)
-        header_re = r"\s*we\s+will\s+work\s+with\s+the\s+1s\s+3p\s+5d\s+7f\s+9g\s+...\s+basis\s+set"
+        basis_regex = r"1s\s+" + \
+            "".join((r"(?:"+str(2*(i+1)+1)+x+r"\s+)?" for i,x in enumerate("pdfghijkl")))
+        basis_type = ("\s+auxiliary" if is_auxbasis else "") + "\s+basis\s+set"
+        header_re = r"\s*we\s+will\s+work\s+with\s+the\s+"+basis_regex+"\s*..." + basis_type
         gauss_type_spherical = SM(header_re,
                                   name="spherical Gaussians",
                                   subMatchers=[
