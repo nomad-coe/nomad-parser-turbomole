@@ -37,21 +37,26 @@ IGNORED_MODULES = [
 ]
 
 
+class _GeneralInfo(object):
+
+    def __init__(self):
+        self.module = None
+        self.version = None
+        self.node = None
+        self.clean_end = None
+        self.start_time = None
+        self.end_time = None
+        self.index_config = None
+        self.index_geo = None
+        self.index_method = None
+
+
 class TurbomoleParserContext(object):
 
-    class GeneralInfo(object):
-        module = list()
-        version = list()
-        node = list()
-        clean_end = list()
-        start_time = list()
-        end_time = list()
-        index_config = list()
-        index_geo = list()
-        index_method = list()
 
     def __init__(self):
         self.__data = dict()
+        self.__invocations = list()
 
     def __getitem__(self, item):
         return self.__data[item]
@@ -66,13 +71,13 @@ class TurbomoleParserContext(object):
             yield key, sub_parser
 
     def index_configuration(self):
-        return self.GeneralInfo.index_config[-1]
+        return self.__invocations[-1].index_config
 
     def index_method(self):
-        return self.GeneralInfo.index_method[-1]
+        return self.__invocations[-1].index_method
 
     def index_system(self):
-        return self.GeneralInfo.index_geo[-1]
+        return self.__invocations[-1].index_geo
 
     def purge_subparsers(self):
         for sub_parser in self.__data.values():
@@ -80,13 +85,14 @@ class TurbomoleParserContext(object):
 
     def build_module_matcher(self, module_name, subMatchers, generic=False):
         def open_section_config(backend, gIndex, section):
-            self.GeneralInfo.index_config.append(gIndex)
+            self.__invocations.append(_GeneralInfo())
+            self.__invocations[-1].index_config = gIndex
 
         def open_section_method(backend, gIndex, section):
-            self.GeneralInfo.index_method.append(gIndex)
+            self.__invocations[-1].index_method = gIndex
 
         def open_section_geo(backend, gIndex, section):
-            self.GeneralInfo.index_geo.append(gIndex)
+            self.__invocations[-1].index_geo = gIndex
 
         def close_section_method(backend, gIndex, section):
             self["geo"].write_basis_set_mapping(self.index_configuration(), gIndex)
@@ -99,9 +105,9 @@ class TurbomoleParserContext(object):
             if generic:
                 logger.error("Turbomole module without dedicated parser found: %s" % groups[0])
             self.purge_subparsers()
-            self.GeneralInfo.version.append(groups[2])
-            self.GeneralInfo.node.append(groups[1])
-            self.GeneralInfo.module.append(groups[0])
+            self.__invocations[-1].version = groups[2]
+            self.__invocations[-1].node = groups[1]
+            self.__invocations[-1].module = groups[0]
 
         return SM(r"\s*("+module_name+")\s*\(([^\)]+)\)\s*\:\s*TURBOMOLE\s+([a-zA-Z0-9.]+)",
                   name=(module_name if not generic else "unknown") + " module",
@@ -128,7 +134,7 @@ class TurbomoleParserContext(object):
         def set_start_time(backend, groups):
             utc_time = datetime.strptime("%sT%sZ" % (groups[0], groups[1]), "%Y-%m-%dT%H:%M:%S.%fZ")
             epoch_time = (utc_time - datetime(1970, 1, 1)).total_seconds()
-            self.GeneralInfo.start_time.append(epoch_time)
+            self.__invocations[-1].start_time = epoch_time
 
         return SM(r"\s*("+RE_DATE+r")\s+("+RE_TIME+r")\s*$",
                   name="start timestamp",
@@ -148,12 +154,12 @@ class TurbomoleParserContext(object):
             backend.addRealValue("time_calculation", time)
 
         def set_clean_end(backend, groups):
-            self.GeneralInfo.clean_end.append(True)
+            self.__invocations[-1].clean_end = True
 
         def set_end_time(backend, groups):
             utc_time = datetime.strptime("%sT%sZ" % (groups[0], groups[1]), "%Y-%m-%dT%H:%M:%S.%fZ")
             epoch_time = (utc_time - datetime(1970, 1, 1)).total_seconds()
-            self.GeneralInfo.end_time.append(epoch_time)
+            self.__invocations[-1].end_time = epoch_time
 
         walltime = SM(r"\s*total\s+wall-time\s*:(?:\s*("+RE_FLOAT+")\s+days)?"
                       r"(?:\s*("+RE_FLOAT+")\s+hours)?"
@@ -213,24 +219,19 @@ class TurbomoleParserContext(object):
         self.initialize_values()
 
     def onClose_section_run(self, backend, gIndex, section):
-        if len(self.GeneralInfo.version) > 0:
-            if len(set(self.GeneralInfo.version)) > 1:
-                logger.warning("found inconsistent code version information: %s" %
-                               str(self.GeneralInfo.version))
-            backend.addValue("program_version", self.GeneralInfo.version[0])
-            if len(self.GeneralInfo.clean_end) != len(self.GeneralInfo.module):
-                backend.addValue("run_clean_end", False)
-            else:
-                backend.addValue("run_clean_end", False in self.GeneralInfo.clean_end)
-        if len(self.GeneralInfo.node) > 0:
-            if len(set(self.GeneralInfo.node)) > 1:
-                logger.warning("found inconsistent host node information: %s" %
-                               str(self.GeneralInfo.node))
-            backend.addValue("x_turbomole_nodename", self.GeneralInfo.node[0])
-        if len(self.GeneralInfo.start_time) > 0:
-            backend.addRealValue("time_run_date_start", min(self.GeneralInfo.start_time))
-        if len(self.GeneralInfo.end_time) > 0:
-            backend.addRealValue("time_run_date_end", min(self.GeneralInfo.end_time))
+        if len(self.__invocations) > 0:
+            versions = list(set(x.version for x in self.__invocations))
+            if len(versions) > 1:
+                logger.warning("found inconsistent code version information: %s" % str(versions))
+            backend.addValue("program_version", versions[0])
+            backend.addValue("run_clean_end", all(x.clean_end for x in self.__invocations))
+            nodes = list(set(x.node for x in self.__invocations))
+            if len(nodes) > 1:
+                logger.warning("found inconsistent host node information: %s" % str(nodes))
+            backend.addValue("x_turbomole_nodename", nodes[0])
+            backend.addRealValue("time_run_date_start",
+                                 min(x.start_time for x in self.__invocations))
+            backend.addRealValue("time_run_date_end", max(x.end_time for x in self.__invocations))
 
         if self.geoConvergence is not None:
             backend.addValue('x_turbomole_geometry_optimization_converged', self.geoConvergence)
