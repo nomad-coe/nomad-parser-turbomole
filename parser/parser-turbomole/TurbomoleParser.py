@@ -107,10 +107,10 @@ class TurbomoleParserContext(object):
         self.GeneralInfo.module.append(groups[0])
 
     def __close_section_method(self, backend, gIndex, section):
+        self["geo"].write_basis_set_mapping(self.index_configuration(), gIndex)
         backend.addValue("single_configuration_to_calculation_method_ref", gIndex)
 
     def __close_section_system(self, backend, gIndex, section):
-        self["geo"].write_basis_set_mapping()
         backend.addValue("single_configuration_calculation_to_system_ref", gIndex)
 
     def build_start_time_matcher(self):

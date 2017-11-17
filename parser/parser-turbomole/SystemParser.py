@@ -1,4 +1,5 @@
 import logging
+
 import numpy as np
 from nomadcore.simple_parser import SimpleMatcher as SM
 import nomadcore.elements as elements
@@ -7,7 +8,7 @@ from TurbomoleCommon import RE_FLOAT
 logger = logging.getLogger("nomad.turbomoleParser")
 
 
-class Atom(object):
+class _Atom(object):
 
     def __init__(self, x, y, z, elem, charge, shells, isotope, pseudo):
         self.x = float(x)
@@ -22,6 +23,19 @@ class Atom(object):
         else:
             self.is_pseudo = None  # effective core potential not specified
         self.label = self.elem if self.shells > 0 else self.elem+"_1"
+
+
+class _AtomKind(object):
+
+    def __init__(self, index, elem, charge, isotope, pseudo):
+        self.index = int(index)
+        self.elem = elem.capitalize()
+        self.charge = float(charge)
+        self.isotope = int(isotope)
+        if pseudo:
+            self.is_pseudo = True if pseudo == "1" else False
+        else:
+            self.is_pseudo = None  # effective core potential not specified
 
 
 class BasisSet(object):
@@ -41,67 +55,83 @@ class SystemParser(object):
         self.__backend = None
         self.__index_basis_set = -1
         self.__atoms = list()
+        self.__atom_kinds = dict()
         self.__basis_sets = dict()
+        self.__basis_one_to_one = True
         self.__auxbasis_sets = dict()
+        self.__auxbasis_one_to_one = True
 
     def purge_data(self):
         self.__index_basis_set = -1
         self.__atoms = list()
+        self.__atom_kinds = dict()
         self.__basis_sets = dict()
+        self.__basis_one_to_one = True
         self.__auxbasis_sets = dict()
+        self.__auxbasis_one_to_one = True
 
     def set_backend(self, backend):
         self.__backend = backend
 
     # match builders
 
-    def write_basis_set_mapping(self):
-        """the caller is responsible for opening the enclosing
-        section_single_configuration_calculation"""
-        showed_warning = False
-        self.__index_basis_set = self.__backend.openSection("section_basis_set")
-        mapping = np.ndarray(shape=(len(self.__atoms),), dtype=int)
-        total_basis_atoms = sum(x.num_atoms for x in self.__basis_sets.values())
-        index_pseudo = None
-        if total_basis_atoms < len(self.__atoms):
-            # some atoms have no basis set assigned, need to create an empty set
-            index_pseudo = self.__backend.openSection("section_basis_set_atom_centered")
-            self.__backend.addValue("basis_set_atom_centered_short_name", "empty", index_pseudo)
-            self.__backend.addValue("basis_set_atom_number", 0, index_pseudo)
-            self.__backend.addValue("number_of_basis_functions_in_basis_set_atom_centered", 0,
-                                    index_pseudo)
-            self.__backend.closeSection("section_basis_set_atom_centered", index_pseudo)
-        kind_counts = dict()
-        # TODO: if the geometry data doesn't list shells, a simple ordering assumption is used...
-        for i, atom in enumerate(self.__atoms):
-            if atom.shells == 0:
-                mapping[i] = index_pseudo
-            elif atom.elem in kind_counts:
-                if kind_counts[atom.elem] >= self.__basis_sets[atom.elem].num_atoms:
-                    if not showed_warning:
-                        logger.warning("guessing basis set to atom map from ordering!")
-                        showed_warning = True
-                    mapping[i] = index_pseudo
-                else:
-                    kind_counts[atom.elem] = kind_counts[atom.elem] + 1
-                    mapping[i] = self.__basis_sets[atom.elem].index
-            else:
-                kind_counts[atom.elem] = 1
-                mapping[i] = self.__basis_sets[atom.elem].index
-        self.__backend.addArrayValues("mapping_section_basis_set_atom_centered", mapping)
-        self.__backend.closeSection("section_basis_set", self.__index_basis_set)
+    def write_basis_set_mapping(self, config_index, method_index):
+        # TODO: if these conditions are not true, we need to read the files basis and coords instead
+        if self.__basis_one_to_one and len(self.__basis_sets) > 0:
+            self.__write_simple_method_basis_set_mapping(method_index, False, self.__basis_sets)
+        if self.__auxbasis_one_to_one and len(self.__auxbasis_sets) > 0:
+            self.__write_simple_method_basis_set_mapping(method_index, True, self.__auxbasis_sets)
+        if sum(x.num_atoms for x in self.__basis_sets.values()) == len(self.__atoms):
+            self.__write_simple_atomic_basis_set(config_index, False, self.__basis_sets)
+        if sum(x.num_atoms for x in self.__auxbasis_sets.values()) == len(self.__atoms):
+            self.__write_simple_atomic_basis_set(config_index, True, self.__auxbasis_sets)
 
-    def write_method_basis_set_mapping(self):
-        pass
+    def __write_simple_atomic_basis_set(self, config_index, is_auxiliary, basis_sets):
+        references = {"section_single_configuration_calculation": config_index}
+        index = self.__backend.openSection("section_basis_set")
+        self.__backend.setSectionInfo("section_basis_set", index, references)
+        mapping = np.ndarray(shape=(len(self.__atoms),), dtype=int)
+        for i, atom in enumerate(self.__atoms):
+            mapping[i] = basis_sets[atom.elem].index
+        self.__backend.addArrayValues("mapping_section_basis_set_atom_centered", mapping)
+        self.__backend.addValue("basis_set_kind", "density" if is_auxiliary else "wavefunction",
+                                index)
+        self.__backend.closeSection("section_basis_set", index)
+
+    def __write_simple_method_basis_set_mapping(self, method_index, is_auxiliary, basis_sets):
+        references = {"section_method": method_index}
+        index = self.__backend.openSection("section_method_basis_set")
+        self.__backend.setSectionInfo("section_method_basis_set", index, references)
+        self.__backend.addValue("number_of_basis_sets_atom_centered", len(self.__atom_kinds), index)
+        refs = np.ndarray(shape=(len(self.__atom_kinds),2), dtype=int)
+        refs[:, :] = -1
+        for i, elem in enumerate(sorted(self.__atom_kinds)):
+            kind = self.__atom_kinds[elem]
+            refs[i, 0] = kind.index
+            refs[i, 1] = basis_sets[kind.elem].index
+        self.__backend.addValue("method_basis_set_kind",
+                                "density" if is_auxiliary else "wavefunction", index)
+        self.__backend.addArrayValues("mapping_section_method_basis_set_atom_centered", refs, index)
+        self.__backend.closeSection("section_method_basis_set", index)
 
     def build_qm_geometry_matcher(self):
 
         def add_atom(backend, groups):
-            self.__atoms.append(Atom(x=groups[0], y=groups[1], z=groups[2], elem=groups[3],
-                                     charge=groups[5], isotope=groups[7], shells=groups[4],
-                                     pseudo=groups[6]
-                                     )
-                                )
+            new_atom = _Atom(x=groups[0], y=groups[1], z=groups[2], elem=groups[3],charge=groups[5],
+                             isotope=groups[7], shells=groups[4], pseudo=groups[6])
+            self.__atoms.append(new_atom)
+            if groups[3].capitalize() not in self.__atom_kinds:
+                index = backend.openSection("section_method_atom_kind")
+                kind = _AtomKind(index=index, elem=groups[3],charge=groups[5],
+                                 isotope=groups[7], pseudo=groups[6])
+                atom_number = elements.get_atom_number(kind.elem)
+                backend.addValue("method_atom_kind_atom_number", atom_number, index)
+                # backend.addValue("method_atom_kind_explicit_electrons", ..., index)
+                backend.addValue("method_atom_kind_label", kind.elem, index)
+                # backend.addValue("method_atom_kind_mass", ..., index)
+                # backend.addValue("method_atom_kind_pseudopotential_name", ..., index)
+                backend.closeSection("section_method_atom_kind", index)
+                self.__atom_kinds[kind.elem] = kind
 
         def finalize_data(backend, groups):
             pos = np.ndarray(shape=(len(self.__atoms), 3), dtype=float)
@@ -163,9 +193,15 @@ class SystemParser(object):
             basis_set = BasisSet(name=groups[4], index=index,
                                  cartesian=not LocalBasisData.spherical, num_atoms=groups[1])
             if is_auxbasis:
-                self.__auxbasis_sets[key] = basis_set
+                if key in self.__auxbasis_sets:
+                    self.__auxbasis_one_to_one = False
+                else:
+                    self.__auxbasis_sets[key] = basis_set
             else:
-                self.__basis_sets[key] = basis_set
+                if key in self.__basis_sets:
+                    self.__basis_one_to_one = False
+                else:
+                    self.__basis_sets[key] = basis_set
             atom_number = elements.get_atom_number(groups[0].capitalize())
             backend.addValue("basis_set_atom_centered_short_name", groups[4], index)
             backend.addValue("basis_set_atom_number", atom_number, index)
