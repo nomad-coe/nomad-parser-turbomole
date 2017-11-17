@@ -42,6 +42,7 @@ class GRADparser(object):
             self.__context["geo"].build_orbital_basis_matcher(),
             self.__context["orbitals"].build_ir_rep_matcher(),
             self.__context["method"].build_dft_functional_matcher(),
+            self.__context["method"].build_dftd3_vdw_matcher(),
             self.__context["gradient"].build_gradient_matcher(),
             Common.build_profiling_matcher(r"\s*grad(?:\.all)? profiling\s*$"),
             self.__context.build_end_time_matcher("grad")

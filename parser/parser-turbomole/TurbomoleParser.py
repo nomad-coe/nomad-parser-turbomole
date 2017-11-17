@@ -311,6 +311,7 @@ def build_root_parser(context):
         context["geo"].build_orbital_basis_matcher(),
         context["method"].build_dft_functional_matcher(),
         context["embedding"].build_embedding_matcher(),
+        context["method"].build_dftd3_vdw_matcher(),
         Common.build_total_energy_matcher(),
         context["orbitals"].build_eigenstate_matcher(),
         context["gradient"].build_gradient_matcher(),

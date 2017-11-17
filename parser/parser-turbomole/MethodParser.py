@@ -1,6 +1,7 @@
 import logging
 import numpy as np
 from nomadcore.simple_parser import SimpleMatcher as SM
+from TurbomoleCommon import RE_FLOAT
 
 logger = logging.getLogger("nomad.turbomoleParser")
 
@@ -153,4 +154,20 @@ class MethodParser(object):
                   subMatchers=[
                       method_matcher
                   ]
+                  )
+
+    def build_dftd3_vdw_matcher(self):
+
+        energy_matcher = SM(r"\s*Edisp\s+/kcal,\s*au\s*:\s*"+RE_FLOAT+"\s+"
+                            "(?P<energy_van_der_Waals__hartree>"+RE_FLOAT+")\s*$",
+                            name="vdW energy"
+                            )
+
+        return SM(r"\s*\|\s*DFTD3\s+(?P<x_turbomole_dft_d3_version>"
+                  r"V[0-9]+.[0-9]+\s+Rev\s+[0-9]+)\s*\|\s*$",
+                  name="DFT-D3 version",
+                  subMatchers=[
+                      energy_matcher
+                  ],
+                  fixedStartValues={"van_der_Waals_method": "DFT-D3"}
                   )
