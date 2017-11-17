@@ -16,11 +16,12 @@ from GradientParser import GradientParser
 from MethodParser import MethodParser
 from OrbitalParser import OrbitalParser
 from SystemParser import SystemParser
-from ESCFparser import ESCFparser
 from DSCFparser import DSCFparser
+from ESCFparser import ESCFparser
 from GRADparser import GRADparser
 from RIDFTparser import RIDFTparser
 from RICC2parser import RICC2parser
+from STATPTparser import STATPTparser
 
 ############################################################
 # This is the parser for the main file of turbomole.
@@ -354,6 +355,7 @@ def build_root_parser(context):
                   GRADparser(context).build_parser(),
                   RIDFTparser(context).build_parser(),
                   RICC2parser(context).build_parser(),
+                  STATPTparser(context).build_parser(),
                   generic
                   # build_relaxation_matcher()
               ]
