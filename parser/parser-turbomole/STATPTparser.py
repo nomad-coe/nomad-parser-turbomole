@@ -17,9 +17,11 @@ class STATPTparser(object):
         self.__context = context
         self.__backend = None
         self.__trustregion = False
+        self.__geo_converged = None
 
     def purge_data(self):
         self.__trustregion = False
+        self.__geo_converged = None
 
     def set_backend(self, backend):
         self.__backend = backend
@@ -40,13 +42,13 @@ class STATPTparser(object):
         sub_matchers = [
             self.__context.build_start_time_matcher(),
             header,
-            self.build_parameter_matcher(),
+            self.build_hessian_update_matcher(),
             self.__context.build_end_time_matcher("statpt")
         ]
 
         return self.__context.build_module_matcher("statpt", sub_matchers)
 
-    def build_parameter_matcher(self):
+    def build_hessian_update_matcher(self):
         def set_trust_region(backend, groups):
             self.__trustregion = True
 
@@ -75,6 +77,31 @@ class STATPTparser(object):
                             startReAction=set_hessian_update_method
                             )
 
+        def set_sampling_data(backend, gIndex, section):
+            status = all(self.__geo_converged) if self.__geo_converged else None
+            self.__context.set_sampling_mode_section(gIndex, status)
+
+        cycle_index = SM(r"\s*ENERGY\s*=\s*"+RE_FLOAT+"\s*a.u.\s*;\s*#\s*of\s*cycle\s*=\s*"
+                         r"(?P<x_turbomole_geometry_optimization_cycle_index>[0-9]+)\s*$",
+                         name="cycle index")
+
+        return SM(r"\s*\*+\s*Stationary\s*point\s*options\s*\*+\s*$",
+                  name="Geo Opt Config",
+                  sections=["section_sampling_method"],
+                  onClose={"section_sampling_method": set_sampling_data},
+                  fixedStartValues={"sampling_method": "geometry optimization"},
+                  subMatchers=[
+                      trust_region_max,
+                      trust_region_min,
+                      trust_region_initial,
+                      hessian_update,
+                      self.build_criteria_matcher(),
+                      cycle_index,
+                      self.build_convergence_matcher()
+                  ]
+                  )
+
+    def build_criteria_matcher(self):
         conv_energy = SM(r"\s*Threshold\s+for\s+energy\s+change\s*:\s*"
                          r"(?P<geometry_optimization_energy_change__hartree>"+RE_FLOAT+")\s*$",
                          name="energy max")
@@ -93,30 +120,39 @@ class STATPTparser(object):
                             r"(?P<x_turbomole_geometry_optimization_threshold_force_rms__forceAu>"
                             + RE_FLOAT+")\s*$",
                             name="force RMS")
-        criteria_matcher = SM(r"\s*\*+\s*Convergence\s+criteria\s*\*+\s*$",
-                              name="convergence criteria",
-                              subMatchers=[
-                                  conv_energy,
-                                  conv_displace,
-                                  conv_force,
-                                  conv_displace_rms,
-                                  conv_force_rms
-                              ]
-                              )
-
-        def set_geometry_optimization_flag(backend, gIndex, section):
-            self.__context.set_sampling_mode_section(gIndex)
-
-        return SM(r"\s*\*+\s*Stationary\s*point\s*options\s*\*+\s*$",
-                  name="Geo Opt Config",
-                  sections=["section_sampling_method"],
-                  onOpen={"section_sampling_method": set_geometry_optimization_flag},
-                  fixedStartValues={"sampling_method": "geometry optimization"},
+        return SM(r"\s*\*+\s*Convergence\s+criteria\s*\*+\s*$",
+                  name="convergence criteria",
                   subMatchers=[
-                      trust_region_max,
-                      trust_region_min,
-                      trust_region_initial,
-                      hessian_update,
-                      criteria_matcher
+                      conv_energy,
+                      conv_displace,
+                      conv_force,
+                      conv_displace_rms,
+                      conv_force_rms
+                  ]
+                  )
+
+    def build_convergence_matcher(self):
+        def set_initial_convergence(backend, groups):
+            self.__geo_converged = list()
+
+        def update_convergence(backend, groups):
+            self.__geo_converged.append(groups[0] == "yes")
+
+        def build_check_matcher(criterion):
+            return SM(r"\s*"+criterion+"\s+(yes|no)\s+"+RE_FLOAT+"\s+"+RE_FLOAT+"\s*$",
+                      name="converged?",
+                      startReAction=update_convergence
+                      )
+
+        return SM(r"\s*CONVERGENCE\s+INFORMATION\s*$",
+                  name="Convergence Test",
+                  startReAction=set_initial_convergence,
+                  subMatchers=[
+                      SM(r"\s*Converged\?\s+Value\s+Criterion\s*$", name="header"),
+                      build_check_matcher(r"Energy\s+change"),
+                      build_check_matcher(r"RMS\s+of\s+displacement"),
+                      build_check_matcher(r"RMS\s+of\s+gradient"),
+                      build_check_matcher(r"MAX\s+displacement"),
+                      build_check_matcher(r"MAX\s+gradient"),
                   ]
                   )

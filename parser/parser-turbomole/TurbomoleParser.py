@@ -59,6 +59,7 @@ class TurbomoleParserContext(object):
         self.__data = dict()
         self.__invocations = list()
         self.__sampling_mode_section = None
+        self.__geometry_converged = None
 
     def __getitem__(self, item):
         return self.__data[item]
@@ -81,8 +82,10 @@ class TurbomoleParserContext(object):
     def index_system(self):
         return self.__invocations[-1].index_geo
 
-    def set_sampling_mode_section(self, index_settings):
+    def set_sampling_mode_section(self, index_settings, geo_converged=None):
         self.__sampling_mode_section = index_settings
+        if geo_converged:
+            self.__geometry_converged = geo_converged
 
     def purge_subparsers(self):
         for sub_parser in self.__data.values():
@@ -229,6 +232,9 @@ class TurbomoleParserContext(object):
         if self.__sampling_mode_section is not None:
             index = backend.openSection("section_frame_sequence")
             backend.addValue("frame_sequence_to_sampling_ref", self.__sampling_mode_section, index)
+            if self.__geometry_converged:
+                backend.addValue("geometry_optimization_converged", self.__geometry_converged,
+                                 index)
             frames_all = np.asarray([x.index_config for x in self.__invocations], dtype=int)
             frames_kinetic = np.asarray([x.index_config for x in self.__invocations
                                          if x.kinetic_energy], dtype=int)
@@ -356,30 +362,6 @@ def build_total_energy_coupled_cluster_matcher():
 
                ])
 
-def get_cachingLevelForMetaName(metaInfoEnv):
-    """Sets the caching level for the metadata.
-
-    Args:
-        metaInfoEnv: metadata which is an object of the class InfoKindEnv in nomadcore.local_meta_info.py.
-
-    Returns:
-        Dictionary with metaname as key and caching level as value. 
-    """
-    # manually adjust caching of metadata
-    cachingLevelForMetaName = {
-        'eigenvalues_eigenvalues': CachingLevel.Cache,
-        'eigenvalues_kpoints':CachingLevel.Cache,
-        'x_turbomole_geometry_optimization_converged': CachingLevel.Cache
-    }
-
-    # Set caching for temparary storage variables
-    for name in metaInfoEnv.infoKinds:
-        if (   name.startswith('x_turbomole_controlInOut')
-               or name.startswith('x_turbomole_geometry')
-               or name.startswith('x_turbomole_embed')):
-            cachingLevelForMetaName[name] = CachingLevel.Cache
-    return cachingLevelForMetaName
-
 
 def main():
     """Main function.
@@ -394,13 +376,11 @@ def main():
     metaInfoEnv = get_metaInfo(metaInfoPath)
     # set parser info
     parserInfo = {'name': 'turbomole-parser', 'version': '1.0'}
-    # get caching level for metadata
-    cachingLevelForMetaName = get_cachingLevelForMetaName(metaInfoEnv)
     # start parsing
     mainFunction(mainFileDescription=build_root_parser(context),
                  metaInfoEnv=metaInfoEnv,
                  parserInfo=parserInfo,
-                 cachingLevelForMetaName=cachingLevelForMetaName,
+                 cachingLevelForMetaName=dict(),
                  superContext=context)
 
 
