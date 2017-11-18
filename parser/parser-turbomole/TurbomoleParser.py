@@ -120,6 +120,7 @@ class TurbomoleParserContext(object):
             self.__invocations[-1].version = groups[2]
             self.__invocations[-1].node = groups[1]
             self.__invocations[-1].module = groups[0]
+            backend.addValue("x_turbomole_module", groups[0], self.index_configuration())
 
         return SM(r"\s*("+module_name+")\s*\(([^\)]+)\)\s*\:\s*TURBOMOLE\s+([a-zA-Z0-9.]+)",
                   name=(module_name if not generic else "unknown") + " module",
