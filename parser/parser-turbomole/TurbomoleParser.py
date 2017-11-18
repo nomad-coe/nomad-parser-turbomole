@@ -109,6 +109,8 @@ class TurbomoleParserContext(object):
             backend.addValue("single_configuration_to_calculation_method_ref", gIndex)
 
         def close_section_system(backend, gIndex, section):
+            self["geo"].write_atomic_data(gIndex)
+            self["gradient"].write_forces(self.index_configuration())
             backend.addValue("single_configuration_calculation_to_system_ref", gIndex)
 
         def process_module_invocation(backend, groups):

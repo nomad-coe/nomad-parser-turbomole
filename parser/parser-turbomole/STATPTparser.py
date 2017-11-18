@@ -96,6 +96,8 @@ class STATPTparser(object):
                       trust_region_initial,
                       hessian_update,
                       self.build_criteria_matcher(),
+                      self.__context["geo"].build_qm_geometry_matcher_statpt(),
+                      self.__context["gradient"].build_gradient_matcher_statpt(),
                       cycle_index,
                       self.build_convergence_matcher()
                   ]

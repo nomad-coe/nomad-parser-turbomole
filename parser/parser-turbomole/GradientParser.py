@@ -55,13 +55,15 @@ class GradientParser(object):
     # matcher generation methods
 
     # improve: check if Turbomole allows constraints in force calculations
-    def __write_forces(self, backend, groups):
+    def write_forces(self, index_config):
         num_atoms = len(self.__forces)
-        forces = np.ndarray(shape=(num_atoms, 3), dtype=float)
-        forces[:, :] = 0.0
-        for i, atom in enumerate(sorted(self.__forces)):
-            forces[i, 0:3] = atom.x, atom.y, atom.z
-        self.__backend.addArrayValues("atom_forces_raw", forces, unit="forceAu")
+        if num_atoms > 0:
+            forces = np.ndarray(shape=(num_atoms, 3), dtype=float)
+            forces[:, :] = 0.0
+            for i, atom in enumerate(sorted(self.__forces)):
+                forces[i, 0:3] = atom.x, atom.y, atom.z
+            self.__backend.addArrayValues("atom_forces_raw", forces, gIndex=index_config,
+                                          unit="forceAu")
 
     def build_gradient_matcher(self):
 
@@ -108,16 +110,32 @@ class GradientParser(object):
                           derivative()
                       ]
                       )
-        max_component = SM(r"\s*\|maximum\s+component\s+of\s+gradient\|\s+:\s+("
-                           +RE_FLOAT+")\s+\(atom\s+([0-9]+)\s+([A-z]+)\s*\)\s*$",
-                           name="max gradient component",
-                           startReAction=self.__write_forces,
-                           required=True)
 
         return SM(r"\s*cartesian\s+gradient\s+of\s+the\s+energy\s+\(hartree/bohr\)\s*$",
                   name="gradients header",
                   subMatchers=[
-                      gradients(),
-                      max_component
+                      gradients()
+                  ]
+                  )
+
+    def build_gradient_matcher_statpt(self):
+
+        def extract_force(backend, groups):
+            new_force = _Forces(groups[1], groups[0])
+            new_force.x = float(groups[2])
+            new_force.y = float(groups[3])
+            new_force.z = float(groups[4])
+            self.__forces.append(new_force)
+
+        gradient = SM(r"\s*([0-9]+)\s+([A-z]+)"+ 3 * (r"\s+("+RE_FLOAT+")") + "\s*$",
+                      name="gradient",
+                      repeats=True,
+                      startReAction=extract_force
+                      )
+
+        return SM(r"\s*ATOM\s+CARTESIAN\s+GRADIENTS\s*$",
+                  name="gradients header",
+                  subMatchers=[
+                      gradient
                   ]
                   )

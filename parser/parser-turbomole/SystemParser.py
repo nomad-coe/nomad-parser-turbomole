@@ -75,6 +75,20 @@ class SystemParser(object):
 
     # match builders
 
+    def write_atomic_data(self, system_index):
+        pos = np.ndarray(shape=(len(self.__atoms), 3), dtype=float)
+        labels = list()
+        atom_numbers = np.ndarray(shape=(len(self.__atoms),), dtype=float)
+        self.__backend.addValue("number_of_atoms", len(self.__atoms), system_index)
+        for i, atom in enumerate(self.__atoms):
+            pos[i, 0:3] = (atom.x, atom.y, atom.z)
+            labels.append(atom.elem)
+            atom_numbers[i] = elements.get_atom_number(atom.elem)
+        self.__backend.addArrayValues("atom_positions", pos, gIndex=system_index, unit="bohr")
+        self.__backend.addArrayValues("atom_labels", np.asarray(labels, dtype=str),
+                                      gIndex=system_index)
+        self.__backend.addArrayValues("atom_atom_number", atom_numbers, gIndex=system_index)
+
     def write_basis_set_mapping(self, config_index, method_index):
         # TODO: if these conditions are not true, we need to read the files basis and coords instead
         if self.__basis_one_to_one and len(self.__basis_sets) > 0:
@@ -133,28 +147,9 @@ class SystemParser(object):
                 backend.closeSection("section_method_atom_kind", index)
                 self.__atom_kinds[kind.elem] = kind
 
-        def finalize_data(backend, groups):
-            pos = np.ndarray(shape=(len(self.__atoms), 3), dtype=float)
-            labels = list()
-            atom_numbers = np.ndarray(shape=(len(self.__atoms),), dtype=float)
-            backend.addValue("number_of_atoms", len(self.__atoms))
-            for i, atom in enumerate(self.__atoms):
-                pos[i, 0:3] = (atom.x, atom.y, atom.z)
-                labels.append(atom.elem)
-                atom_numbers[i] = elements.get_atom_number(atom.elem)
-            backend.addArrayValues("atom_positions", pos, unit="angstrom")
-            backend.addArrayValues("atom_labels", np.asarray(labels, dtype=str))
-            backend.addArrayValues("atom_atom_number", atom_numbers)
-
         # x, y, z, element, (shells), charge, (pseudo), isotope
-        atom_re = r"\s*([-+]?[0-9]+\.?[0-9]*)" \
-                  r"\s+([-+]?[0-9]+\.?[0-9]*)" \
-                  r"\s+([-+]?[0-9]+\.?[0-9]*)" \
-                  r"\s+([a-zA-Z]+)" \
-                  r"(\s+[0-9]+)?" \
-                  r"\s+([-+]?[0-9]+\.?[0-9]*)" \
-                  r"(\s+[-+]?[0-9]+)?" \
-                  r"\s+([-+]?[0-9]+)"
+        atom_re = r"\s*" + 3 * ("("+RE_FLOAT+")\s+") + r"([a-zA-Z]+)(\s+[0-9]+)?" \
+                  r"\s+("+RE_FLOAT+")(\s+[-+]?[0-9]+)?\s+([-+]?[0-9]+)"
         atom = SM(atom_re, repeats=True, name="single atom", startReAction=add_atom)
         header_re = r"\s*atomic\s+coordinates\s+atom(?:\s+shells)?\s+charge(?:\s+pseudo)?\s+isotop"
 
@@ -162,8 +157,26 @@ class SystemParser(object):
                   startReStr=r"\s*\|\s+Atomic coordinate, charge and isotope? information\s+\|",
                   subMatchers=[
                       SM(r"\s*-{20}-*", name="<format>", coverageIgnore=True),
-                      SM(header_re, name="atom list", subMatchers=[atom]),
-                      SM("\s*center of nuclear mass", startReAction=finalize_data)
+                      SM(header_re, name="atom list", subMatchers=[atom])
+                  ]
+                  )
+
+    def build_qm_geometry_matcher_statpt(self):
+
+        def add_atom(backend, groups):
+            new_atom = _Atom(x=groups[1], y=groups[2], z=groups[3], elem=groups[0], charge=0,
+                             isotope=0, shells=None, pseudo=None)
+            self.__atoms.append(new_atom)
+
+        atom = SM(r"\s*[0-9]+\s+([A-z]+)"+ 3 * (r"\s+("+RE_FLOAT+")") + "\s*$",
+                  name="single atom",
+                  repeats=True,
+                  startReAction=add_atom)
+
+        return SM(name="geometry",
+                  startReStr=r"\s*ATOM\s+CARTESIAN\s+COORDINATES\s*$",
+                  subMatchers=[
+                      atom
                   ]
                   )
 
