@@ -75,6 +75,9 @@ class SystemParser(object):
 
     # match builders
 
+    def num_atoms(self):
+        return len(self.__atoms)
+
     def write_atomic_data(self, system_index):
         pos = np.ndarray(shape=(len(self.__atoms), 3), dtype=float)
         labels = list()

@@ -13,6 +13,7 @@ logger = logging.getLogger("nomad.turbomoleParser")
 RE_FLOAT = r"(?:[+-]?(?:[0-9]+.?[0-9]*|[0-9]*.[0-9]+)(?:[DEde][+-]?[0-9]+)?)"
 RE_DATE = r"(?:[0-9]{4}-[0-9]{2}-[0-9]{2})"
 RE_TIME = r"(?:(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\.[0-9]{3})"
+RE_FIXED_FLOAT = r"(?:[+ -](?:[0-9]*.[0-9]*)(?:[DEde][+-]?[0-9]+)?)"
 
 
 def build_profiling_matcher(title_regex):
