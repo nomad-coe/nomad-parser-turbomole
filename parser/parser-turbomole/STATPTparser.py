@@ -46,7 +46,7 @@ class STATPTparser(object):
             self.__context.build_end_time_matcher("statpt")
         ]
 
-        return self.__context.build_module_matcher("statpt", sub_matchers)
+        return self.__context.build_module_matcher("statpt", sub_matchers, "STATPT")
 
     def build_hessian_update_matcher(self):
         def set_trust_region(backend, groups):

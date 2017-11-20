@@ -49,7 +49,7 @@ class RICC2parser(object):
             self.__context.build_end_time_matcher("ricc2")
         ]
 
-        return self.__context.build_module_matcher("ricc2", sub_matchers)
+        return self.__context.build_module_matcher("ricc2", sub_matchers, "RICC2")
 
     def build_ref_energy_matcher(self):
 

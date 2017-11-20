@@ -68,7 +68,7 @@ class MethodParser(object):
 
     # matcher generation methods
 
-    def add_default_functional(self, backend, groups):
+    def add_default_functional(self, backend, gIndex, section):
         if not self.__method:
             self.__method = "DFT"
             self.__backend.addValue("electronic_structure_method", "DFT")

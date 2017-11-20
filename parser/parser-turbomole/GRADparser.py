@@ -48,4 +48,5 @@ class GRADparser(object):
             self.__context.build_end_time_matcher("grad")
         ]
 
-        return self.__context.build_module_matcher("grad", sub_matchers)
+        return self.__context.build_module_matcher("grad", sub_matchers, "GRAD",
+                                                   self.__context["method"].add_default_functional)

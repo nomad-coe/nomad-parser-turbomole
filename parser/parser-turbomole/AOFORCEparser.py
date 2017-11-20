@@ -51,7 +51,8 @@ class AOFORCEparser(object):
             self.__context.build_end_time_matcher("grad")
         ]
 
-        return self.__context.build_module_matcher("force", sub_matchers)
+        return self.__context.build_module_matcher("force", sub_matchers, "AOFORCE",
+                                                   self.__context["method"].add_default_functional)
 
     def build_hessian_matcher(self):
         re_header = re.compile(r"\s*([0-9]+)\s*[A-z]+")

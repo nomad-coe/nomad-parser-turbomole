@@ -92,7 +92,7 @@ class TurbomoleParserContext(object):
         for sub_parser in self.__data.values():
             sub_parser.purge_data()
 
-    def build_module_matcher(self, module_name, subMatchers, generic=False):
+    def build_module_matcher(self, module_pattern, subMatchers, module_name=None, finalizer=None):
         def open_section_config(backend, gIndex, section):
             self.__invocations.append(_GeneralInfo())
             self.__invocations[-1].index_config = gIndex
@@ -115,7 +115,7 @@ class TurbomoleParserContext(object):
             backend.addValue("single_configuration_calculation_to_system_ref", gIndex)
 
         def process_module_invocation(backend, groups):
-            if generic:
+            if not module_name:
                 logger.error("Turbomole module without dedicated parser found: %s" % groups[0])
             self.purge_subparsers()
             self.__invocations[-1].version = groups[2]
@@ -123,8 +123,15 @@ class TurbomoleParserContext(object):
             self.__invocations[-1].module = groups[0]
             backend.addValue("x_turbomole_module", groups[0], self.index_configuration())
 
-        return SM(r"\s*("+module_name+")\s*\(([^\)]+)\)\s*\:\s*TURBOMOLE\s+([a-zA-Z0-9.]+)",
-                  name=(module_name if not generic else "unknown") + " module",
+        on_close = {
+                      "section_system": close_section_system,
+                      "section_method": close_section_method
+                  }
+        if finalizer:
+            on_close[None] = finalizer
+
+        return SM(r"\s*("+module_pattern+")\s*\(([^\)]+)\)\s*\:\s*TURBOMOLE\s+([a-zA-Z0-9.]+)",
+                  name=(module_name if module_name else "unknown") + " module",
                   sections=[
                       "section_single_configuration_calculation",
                       "section_system",
@@ -135,10 +142,7 @@ class TurbomoleParserContext(object):
                       "section_system": open_section_geo,
                       "section_method": open_section_method
                   },
-                  onClose={
-                      "section_system": close_section_system,
-                      "section_method": close_section_method
-                  },
+                  onClose=on_close,
                   startReAction=process_module_invocation,
                   subMatchers=subMatchers
                   )
@@ -297,7 +301,7 @@ def build_root_parser(context):
         context["gradient"].build_gradient_matcher(),
         context.build_end_time_matcher("[A-z0-9]+")
     ]
-    generic = context.build_module_matcher("[A-z0-9]+", sub_matcher, generic=True)
+    generic = context.build_module_matcher("[A-z0-9]+", sub_matcher)
 
     def ignore_mpi_slaves(backend, groups):
         if int(groups[0]) > 1:  # RICC2 module starts indexing processes from 0, others at 1

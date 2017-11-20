@@ -52,7 +52,8 @@ class DSCFparser(object):
             self.__context.build_end_time_matcher("dscf")
         ]
 
-        return self.__context.build_module_matcher("dscf", sub_matchers)
+        return self.__context.build_module_matcher("dscf", sub_matchers, "DSCF",
+                                                   self.__context["method"].add_default_functional)
 
     def __build_scf_cycle_matcher(self):
 
@@ -130,7 +131,6 @@ class DSCFparser(object):
         return SM(r"\s*scf convergence criterion : increment of total energy <\s*"+RE_FLOAT+"\s*$",
                   name="HF/DFT SCF",
                   required=True,
-                  startReAction=self.__context["method"].add_default_functional,
                   subMatchers=[
                       SM("\s*time elapsed for pre-SCF steps : cpu\s+([0-9]+\.[0-9]+)\s+sec",
                          name="SCF preparation"),

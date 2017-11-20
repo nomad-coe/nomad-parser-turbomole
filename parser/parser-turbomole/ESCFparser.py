@@ -42,7 +42,7 @@ class ESCFparser(object):
             self.__context.build_end_time_matcher("escf")
         ]
 
-        return self.__context.build_module_matcher("escf", sub_matchers)
+        return self.__context.build_module_matcher("escf", sub_matchers, "ESCF")
 
     def __build_gw_matcher(self):
         def get_gw_approximation(backend, groups):

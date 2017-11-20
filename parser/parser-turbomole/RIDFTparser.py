@@ -55,7 +55,8 @@ class RIDFTparser(object):
             self.__context.build_end_time_matcher("ridft")
         ]
 
-        return self.__context.build_module_matcher("ridft", sub_matchers)
+        return self.__context.build_module_matcher("ridft", sub_matchers, "RIDFT",
+                                                   self.__context["method"].add_default_functional)
 
     def __build_scf_cycle_matcher(self):
 
@@ -130,7 +131,6 @@ class RIDFTparser(object):
         return SM(r"\s*Starting SCF iterations\s*$",
                   name="HF/DFT SCF",
                   required=True,
-                  startReAction=self.__context["method"].add_default_functional,
                   subMatchers=[
                       scf_iteration
                   ]
