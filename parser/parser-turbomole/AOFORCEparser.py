@@ -48,6 +48,7 @@ class AOFORCEparser(object):
             self.__context["method"].build_dft_functional_matcher(),
             self.__context["method"].build_dftd3_vdw_matcher(),
             self.build_hessian_matcher(),
+            self.build_total_energy_matcher(),
             self.__context.build_end_time_matcher("grad")
         ]
 
@@ -116,3 +117,24 @@ class AOFORCEparser(object):
                   ],
                   onClose={None: write_data}
                   )
+
+    def build_total_energy_matcher(self):
+
+        def set_total_energy(backend, groups):
+            backend.addRealValue("energy_total", float(groups[0]), unit="hartree")
+
+        scf_etot = SM(r"\s*\*\s*SCF-energy\s+:\s+("+RE_FLOAT+")\s*\*\s*$",
+                      name="SCF total energy")
+        scf_zp = SM(r"\s*\*\s*SCF\s+\+\s+E\(vib0\)\s+:\s+"
+                    r"(?P<energy_current__hartree>"+RE_FLOAT+")\s*\*\s*$",
+                    name="SCF total energy",
+                    startReAction=set_total_energy)
+
+        return SM(r"\s*\*\s*zero\s+point\s+VIBRATIONAL\s+energy\s+:\s+"
+                  r"(?P<energy_zero_point__hartree>"+RE_FLOAT+")\s*Hartree\s*\*\s*$",
+                  name="zero point energy",
+                  # TODO: define allowed values for ZP-corrections and add output
+                  subMatchers=[
+                      scf_etot,
+                      scf_zp
+                  ])
