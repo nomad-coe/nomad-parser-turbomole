@@ -17,6 +17,9 @@ class AOFORCEparser(object):
         self.__context = context
         self.__backend = None
         self.__hessian = None
+        self.__modes = None
+        self.__energies = None
+        self.__intensities = None
         self.__current_columns = None
         self.__current_row = None
 
@@ -48,6 +51,7 @@ class AOFORCEparser(object):
             self.__context["method"].build_dft_functional_matcher(),
             self.__context["method"].build_dftd3_vdw_matcher(),
             self.build_hessian_matcher(),
+            self.build_normal_modes_matcher(),
             self.build_total_energy_matcher(),
             self.__context.build_end_time_matcher("grad")
         ]
@@ -138,3 +142,103 @@ class AOFORCEparser(object):
                       scf_etot,
                       scf_zp
                   ])
+
+    def build_normal_modes_matcher(self):
+        re_header = re.compile(r"\s*([0-9]+)")
+        re_element = re.compile(r"\s*("+RE_FLOAT+")")
+        indices = {"x": 0, "y": 1, "z": 2}
+        units = {"cm**(-1)": "???"}
+
+        def prepare_data(backend, groups):
+            n_atoms = self.__context["geo"].num_atoms()
+            self.__modes = np.ndarray(shape=(3 * n_atoms, n_atoms, 3), dtype=float)
+            self.__modes[:, :, :] = 0.0
+            self.__energies = np.ndarray(shape=(3 * n_atoms), dtype=float)
+            self.__energies[:] = 0.0
+            self.__intensities = np.ndarray(shape=(3 * n_atoms), dtype=float)
+            self.__intensities[:] = 0.0
+            backend.addValue("x_turbomole_vibrations_num_modes", 3 * n_atoms)
+            self.__current_columns = list()
+            self.__current_row = -1
+
+        def process_header(backend, groups):
+            match = re_header.match(groups[0])
+            del self.__current_columns[:]
+            while match:
+                self.__current_columns.append(int(match.group(1)) - 1)
+                match = re_header.match(groups[0], pos=match.end(0))
+
+        def process_row(backend, groups):
+            if groups[0]:
+                self.__current_row = int(groups[0]) - 1
+            axis1 = indices[groups[1]]
+            match = re_element.match(groups[2])
+            index = 0
+            while match:
+                value = float(match.group(0))
+                self.__modes[self.__current_columns[index], self.__current_row, axis1] = value
+                match = re_element.match(groups[2], pos=match.end(0))
+                index += 1
+
+        def extract_frequencies(backend, groups):
+            match = re_element.match(groups[0])
+            index = 0
+            while match:
+                value = float(match.group(0))
+                self.__energies[self.__current_columns[index]] = value
+                match = re_element.match(groups[0], pos=match.end(0))
+                index += 1
+
+        def extract_intensities(backend, groups):
+            match = re_element.match(groups[0])
+            index = 0
+            while match:
+                value = float(match.group(0))
+                self.__intensities[self.__current_columns[index]] = value
+                match = re_element.match(groups[0], pos=match.end(0))
+                index += 1
+
+        def write_data(backend, gIndex, section):
+            backend.addArrayValues("x_turbomole_vibrations_normal_modes", self.__modes,
+                                   self.__context.index_configuration(), unit="bohr")
+            backend.addArrayValues("x_turbomole_vibrations_mode_energies", self.__energies,
+                                   self.__context.index_configuration(), unit="inversecm")
+            backend.addArrayValues("x_turbomole_vibrations_intensities", self.__intensities,
+                                   self.__context.index_configuration(), unit="kcal * mole ** -1")
+
+        frequencies = SM(r"\s*frequency((?:\s+"+RE_FLOAT+")+)\s*$",
+                         name="frequencies",
+                         required=True,
+                         startReAction=extract_frequencies
+                         )
+        intensities = SM(r"\s*intensity\s*\(km/mol\)((?:\s+"+RE_FLOAT+")+)\s*$",
+                         name="intensities",
+                         required=True,
+                         startReAction=extract_intensities
+                         )
+
+        block_row = SM(r"\s*(?:([0-9]+)\s+[A-z]+\s+)?([xyz])((?:\s+"+RE_FLOAT+")+)\s*$",
+                       name="mode displacements",
+                       repeats=True,
+                       startReAction=process_row
+                       )
+
+        block_header = SM(r"\s*mode((?:\s+[0-9]+)+)\s*$",
+                          name="column header",
+                          startReAction=process_header,
+                          repeats=True,
+                          subMatchers=[
+                              frequencies,
+                              intensities,
+                              block_row
+                          ]
+                          )
+
+        return SM(r"\s*NORMAL\s+MODES\s+and\s+VIBRATIONAL\s+FREQUENCIES\s+\(cm\*\*\(-1\)\)\s*$",
+                  name="vibrational spectrum",
+                  startReAction=prepare_data,
+                  subMatchers=[
+                      block_header
+                  ],
+                  onClose={None: write_data}
+                  )
