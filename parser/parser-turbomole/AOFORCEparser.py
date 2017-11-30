@@ -2,8 +2,10 @@
 
 import logging
 import re
+import os
 import numpy as np
 from nomadcore.simple_parser import SimpleMatcher as SM
+from nomadcore.simple_parser import AncillaryParser
 from TurbomoleCommon import RE_FLOAT, RE_FIXED_FLOAT
 import TurbomoleCommon as Common
 
@@ -22,9 +24,18 @@ class AOFORCEparser(object):
         self.__intensities = None
         self.__current_columns = None
         self.__current_row = None
+        self.__prefix_width = None
+        self.__vibration_files = dict()
 
     def purge_data(self):
-        pass
+        self.__hessian = None
+        self.__modes = None
+        self.__energies = None
+        self.__intensities = None
+        self.__current_columns = None
+        self.__current_row = None
+        self.__prefix_width = None
+        self.__vibration_files = dict()
 
     def set_backend(self, backend):
         self.__backend = backend
@@ -50,16 +61,26 @@ class AOFORCEparser(object):
             self.__context["orbitals"].build_ir_rep_matcher(),
             self.__context["method"].build_dft_functional_matcher(),
             self.__context["method"].build_dftd3_vdw_matcher(),
-            self.build_hessian_matcher(),
-            self.build_normal_modes_matcher(),
-            self.build_total_energy_matcher(),
+            self.__build_hessian_matcher(),
+            self.__build_normal_mode_file_matcher(),
+            self.__build_normal_modes_matcher(),
+            self.__build_total_energy_matcher(),
             self.__context.build_end_time_matcher("grad")
         ]
 
         return self.__context.build_module_matcher("force", sub_matchers, "AOFORCE",
                                                    self.__context["method"].add_default_functional)
 
-    def build_hessian_matcher(self):
+    def __build_normal_mode_file_matcher(self):
+        def store_file_name(backend, groups):
+            self.__vibration_files["modes"] = groups[0]
+        return SM(r"\s*\*{3}\s*normal\s+modes\s+written\s+onto\s+\$vibrational\s+normal\s+modes,"
+                  r"\s+file=<([^>]+)>\s*\*{3}\s*$",
+                  name="normal modes file",
+                  startReAction=store_file_name
+                  )
+
+    def __build_hessian_matcher(self):
         re_header = re.compile(r"\s*([0-9]+)\s*[A-z]+")
         re_element = re.compile(r"\s*("+RE_FIXED_FLOAT+")")
         indices = {"x": 0, "y": 1, "z": 2}
@@ -122,7 +143,7 @@ class AOFORCEparser(object):
                   onClose={None: write_data}
                   )
 
-    def build_total_energy_matcher(self):
+    def __build_total_energy_matcher(self):
 
         def set_total_energy(backend, groups):
             backend.addRealValue("energy_total", float(groups[0]), unit="hartree")
@@ -143,13 +164,8 @@ class AOFORCEparser(object):
                       scf_zp
                   ])
 
-    def build_normal_modes_matcher(self):
-        re_header = re.compile(r"\s*([0-9]+)")
-        re_element = re.compile(r"\s*("+RE_FLOAT+")")
-        indices = {"x": 0, "y": 1, "z": 2}
-        units = {"cm**(-1)": "???"}
-
-        def prepare_data(backend, groups):
+    def __prepare_vibrations__data(self, backend, groups):
+        if self.__modes is None:
             n_atoms = self.__context["geo"].num_atoms()
             self.__modes = np.ndarray(shape=(3 * n_atoms, n_atoms, 3), dtype=float)
             self.__modes[:, :, :] = 0.0
@@ -160,6 +176,11 @@ class AOFORCEparser(object):
             backend.addValue("x_turbomole_vibrations_num_modes", 3 * n_atoms)
             self.__current_columns = list()
             self.__current_row = -1
+
+    def __build_normal_modes_matcher(self):
+        re_header = re.compile(r"\s*([0-9]+)")
+        re_element = re.compile(r"\s*("+RE_FLOAT+")")
+        indices = {"x": 0, "y": 1, "z": 2}
 
         def process_header(backend, groups):
             match = re_header.match(groups[0])
@@ -199,6 +220,19 @@ class AOFORCEparser(object):
                 index += 1
 
         def write_data(backend, gIndex, section):
+            # check if the external files are present and read them if possible (higher precision)
+            if "modes" in self.__vibration_files:
+                modes_parser = self.__build_normal_modes_file_parser()
+                dir_name = os.path.dirname(os.path.abspath(self.__context.fName))
+                file_name = os.path.normpath(os.path.join(dir_name,
+                                                          self.__vibration_files["modes"]))
+                try:
+                    with open(file_name) as file_in:
+                        modes_parser.parseFile(file_in)
+                except IOError:
+                    logger.warning("Could not find auxiliary file '%s' in directory '%s'." % (
+                        self.__vibration_files["modes"], dir_name))
+
             backend.addArrayValues("x_turbomole_vibrations_normal_modes", self.__modes,
                                    self.__context.index_configuration(), unit="bohr")
             backend.addArrayValues("x_turbomole_vibrations_mode_energies", self.__energies,
@@ -236,9 +270,49 @@ class AOFORCEparser(object):
 
         return SM(r"\s*NORMAL\s+MODES\s+and\s+VIBRATIONAL\s+FREQUENCIES\s+\(cm\*\*\(-1\)\)\s*$",
                   name="vibrational spectrum",
-                  startReAction=prepare_data,
+                  startReAction=self.__prepare_vibrations__data,
                   subMatchers=[
                       block_header
                   ],
                   onClose={None: write_data}
                   )
+
+    def __build_normal_modes_file_parser(self):
+        re_element = re.compile(r"\s*("+RE_FLOAT+")")
+
+        def prepare_data(backend, gIndex, section):
+            self.__prefix_width = len(str(self.__context["geo"].num_atoms()))+1
+            self.__prepare_vibrations__data(backend, tuple())
+            self.__current_columns = 0
+
+        def process_line(backend, groups):
+            row_index = int(groups[0][0:self.__prefix_width])
+            if self.__current_row != row_index:
+                self.__current_columns = 0
+                self.__current_row = row_index
+            atom = (row_index - 1) // 3
+            axis = (row_index - 1) % 3
+            match = re_element.match(groups[1])
+            while match:
+                value = float(match.group(0))
+                self.__modes[self.__current_columns, atom, axis] = value
+                match = re_element.match(groups[1], pos=match.end(0))
+                self.__current_columns += 1
+
+        data = SM(r"( *[0-9]+ *[0-9]+)((?:\s+"+RE_FLOAT+")+)\s*$",
+                  name="displacements",
+                  startReAction=process_line,
+                  repeats=True)
+        normal_modes = SM(r"",
+                          name="normal modes file root",
+                          onOpen={None: prepare_data},
+                          subMatchers=[
+                              data
+                          ]
+                          )
+
+        return AncillaryParser(fileDescription=normal_modes,
+                               parser=self.__context.parser,
+                               cachingLevelForMetaName=dict(),
+                               superContext=self.__context
+                               )
