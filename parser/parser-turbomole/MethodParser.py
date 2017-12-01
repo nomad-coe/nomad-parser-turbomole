@@ -34,9 +34,10 @@ class MethodParser(object):
         "CIS(D)": "CISD",
         "CIS(Dinf)": "CISD",
         "ADC(2)": "MP2",  # TODO: check paper to verify this mapping
-        "CC2": "CCSD"
+        "CC2": "CCSD",
+        "CCSD": "CCSD",
+        "CCSD(T)": "CCSD(T)"
     }
-
 
     def __init__(self, context, key="method"):
         context[key] = self

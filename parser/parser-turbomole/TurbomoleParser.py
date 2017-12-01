@@ -17,6 +17,7 @@ from MethodParser import MethodParser
 from OrbitalParser import OrbitalParser
 from SystemParser import SystemParser
 from AOFORCEparser import AOFORCEparser
+from CCSDF12parser import CCSDF12parser
 from DSCFparser import DSCFparser
 from ESCFparser import ESCFparser
 from GRADparser import GRADparser
@@ -334,6 +335,7 @@ def build_root_parser(context):
                   mpi_slaves,
                   skip_modules,
                   AOFORCEparser(context).build_parser(),
+                  CCSDF12parser(context).build_parser(),
                   ESCFparser(context).build_parser(),
                   DSCFparser(context).build_parser(),
                   GRADparser(context).build_parser(),
