@@ -108,12 +108,14 @@ class TurbomoleParserContext(object):
             self["geo"].write_basis_set_mapping(self.index_configuration(), gIndex)
             self.__invocations[-1].kinetic_energy = self["method"].get_energy_kinetic()
             self.__invocations[-1].potential_energy = self["method"].get_energy_potential()
-            backend.addValue("single_configuration_to_calculation_method_ref", gIndex)
+            backend.addValue("single_configuration_to_calculation_method_ref", gIndex,
+                             self.index_configuration())
 
         def close_section_system(backend, gIndex, section):
             self["geo"].write_atomic_data(gIndex)
             self["gradient"].write_forces(self.index_configuration())
-            backend.addValue("single_configuration_calculation_to_system_ref", gIndex)
+            backend.addValue("single_configuration_calculation_to_system_ref", gIndex,
+                             self.index_configuration())
 
         def process_module_invocation(backend, groups):
             if not module_name:
@@ -170,7 +172,7 @@ class TurbomoleParserContext(object):
                 time += 3600.0 * float(groups[1])
             if groups[0]:
                 time += 86400.0 * float(groups[0])
-            backend.addRealValue("time_calculation", time)
+            backend.addRealValue("time_calculation", time, self.index_configuration())
 
         def set_clean_end(backend, groups):
             self.__invocations[-1].clean_end = True

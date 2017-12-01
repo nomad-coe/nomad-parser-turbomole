@@ -49,6 +49,7 @@ class MethodParser(object):
         self.__functional = None
         self.__energy_kinetic = None
         self.__energy_potential = None
+        self.__correlation_stash = dict()
 
     def purge_data(self):
         self.spin_channels = 1
@@ -57,6 +58,7 @@ class MethodParser(object):
         self.__functional = None
         self.__energy_kinetic = None
         self.__energy_potential = None
+        self.__correlation_stash = dict()
 
     def set_backend(self, backend):
         self.__backend = backend
@@ -66,6 +68,12 @@ class MethodParser(object):
 
     def get_energy_potential(self):
         return self.__energy_potential
+
+    def get_main_method(self):
+        return self.__method
+
+    def get_correlation_method_data(self):
+        return self.__correlation_stash
 
     # matcher generation methods
 
@@ -141,11 +149,11 @@ class MethodParser(object):
             elif groups[0] == "unrestricted open":
                 self.__context["method"].spin_channels = 2
             else:
-                logger.error("found unknown spin configuration in : %s" %  groups[0])
+                logger.error("found unknown spin configuration in : %s" % groups[0])
 
         def extract_wf_method(backend, groups):
             method = self.__wavefunction_models_map.get(groups[0], None)
-            self.__method = method
+            self.__method = groups[0]
             if method:
                 backend.addValue("electronic_structure_method", method)
             else:
@@ -233,4 +241,42 @@ class MethodParser(object):
                       virial_theorem,
                       wavefunction_norm
                   ]
+                  )
+
+    def build_correlation_energy_matcher(self):
+
+        def reference_hf_energy(backend, groups):
+            self.__correlation_stash["spin"] = groups[0]
+            self.__correlation_stash["e_hf"] = float(groups[1])
+
+        def correlation_correction(backend, groups):
+            self.__correlation_stash["e_corr"] = float(groups[0])
+
+        def correlated_total_energy(backend, groups):
+            self.__correlation_stash["method"] = groups[0]
+            self.__correlation_stash["e_total"] = float(groups[1])
+
+        correlation = SM(r"\s*\*\s*correlation\s+energy\s*:\s*("+RE_FLOAT+r")\s*\*\s*",
+                         name="correlation energy",
+                         startReAction=correlation_correction
+                         )
+        mp2_correlation = SM(r"\s*\*\s*MP2\s+correlation\s+energy\s+\(doubles\)\s*:\s*("
+                             + RE_FLOAT + r")\s*\*\s*",
+                             name="correlation energy",
+                             startReAction=correlation_correction
+                             )
+        total_energy = SM(r"\s*\*\s*Final\s+([^\s].+[^\s])\s+energy\s*:\s*("+RE_FLOAT+r")\s*\*\s*",
+                          name="total energy",
+                          startReAction=correlated_total_energy
+                          )
+
+        return SM(r"\s*\*\s*(RHF|UHF|ROHF)\s+energy\s*:\s*("+RE_FLOAT+r")\s*\*\s*$",
+                  name="HF energy",
+                  startReAction=reference_hf_energy,
+                  subMatchers=[
+                      mp2_correlation,
+                      correlation,
+                      total_energy
+                  ],
+                  # onClose={None: write_data}
                   )
