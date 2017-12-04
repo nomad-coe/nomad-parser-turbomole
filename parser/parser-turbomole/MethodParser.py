@@ -49,7 +49,7 @@ class MethodParser(object):
         self.__functional = None
         self.__energy_kinetic = None
         self.__energy_potential = None
-        self.__correlation_stash = dict()
+        self.__indices_to_write = {"method": -1, "config": -1}
 
     def purge_data(self):
         self.spin_channels = 1
@@ -58,10 +58,13 @@ class MethodParser(object):
         self.__functional = None
         self.__energy_kinetic = None
         self.__energy_potential = None
-        self.__correlation_stash = dict()
+        self.__indices_to_write = {"method": -1, "config": -1}
 
     def set_backend(self, backend):
         self.__backend = backend
+
+    def set_target_indices(self, index_config=-1, index_method=-1):
+        self.__indices_to_write = {"method": index_config, "config": index_method}
 
     def get_energy_kinetic(self):
         return self.__energy_kinetic
@@ -72,19 +75,29 @@ class MethodParser(object):
     def get_main_method(self):
         return self.__method
 
-    def get_correlation_method_data(self):
-        return self.__correlation_stash
+    def __method_index(self):
+        if self.__indices_to_write["method"] == -1:
+            return self.__context.index_method()
+        else:
+            return self.__indices_to_write["method"]
+
+    def __config_index(self):
+        if self.__indices_to_write["config"] == -1:
+            return self.__context.index_configuration()
+        else:
+            return self.__indices_to_write["config"]
 
     # matcher generation methods
 
     def add_default_functional(self, backend, gIndex, section):
         if not self.__method:
+            index_method = self.__method_index()
             self.__method = "DFT"
-            self.__backend.addValue("electronic_structure_method", "DFT")
-            self.__backend.addValue("calculation_method_kind", "absolute")
-            index = self.__backend.openSection("section_XC_functionals")
-            self.__backend.addValue('XC_functional_name', "HF_X")
-            self.__backend.closeSection("section_XC_functionals", index)
+            self.__backend.addValue("electronic_structure_method", "DFT", index_method)
+            self.__backend.addValue("calculation_method_kind", "absolute", index_method)
+            index_xc = self.__backend.openSection("section_XC_functionals")
+            self.__backend.addValue('XC_functional_name', "HF_X", index_xc)
+            self.__backend.closeSection("section_XC_functionals", index_xc)
 
     def build_uhf_matcher(self):
 
@@ -98,22 +111,37 @@ class MethodParser(object):
 
     # TODO: add support for remaining XC-functionals in Turbomole + custom mixing combinations
     def build_dft_functional_matcher(self):
-        exchange = SM(r"\s*exchange:\s*(?P<x_turbomole_functional_type_exchange>.+)")
-        correlation = SM(r"\s*correlation:\s*(?P<x_turbomole_functional_type_correlation>.+)")
+        def set_exchange_part(backend, groups):
+            backend.addValue("x_turbomole_functional_type_exchange", groups[0],
+                             self.__method_index())
+
+        def set_correlation_part(backend, groups):
+            backend.addValue("x_turbomole_functional_type_correlation", groups[0],
+                             self.__method_index())
+
+        exchange = SM(r"\s*exchange:\s*(.+)",
+                      name="exchange part",
+                      startReAction=set_exchange_part
+                      )
+        correlation = SM(r"\s*correlation:\s*(.+)",
+                         name="exchange part",
+                         startReAction=set_correlation_part
+                         )
 
         def set_functional(backend, groups):
+            index_method = self.__method_index()
             if groups[0] in self.__functional_map:
                 self.__functional = self.__functional_map[groups[0]]
             else:
                 self.__functional = ["UNKNOWN"]
                 logger.warning("XC-functional '%s' not known!" % groups[0])
             self.__method = "DFT"
-            backend.addValue("electronic_structure_method", "DFT")
-            backend.addValue("calculation_method_kind", "absolute")
+            backend.addValue("electronic_structure_method", "DFT", index_method)
+            backend.addValue("calculation_method_kind", "absolute", index_method)
             for component in self.__functional:
-                index = backend.openSection("section_XC_functionals")
-                backend.addValue('XC_functional_name', component)
-                backend.closeSection("section_XC_functionals", index)
+                index_xc = backend.openSection("section_XC_functionals")
+                backend.addValue('XC_functional_name', component, index_xc)
+                backend.closeSection("section_XC_functionals", index_xc)
 
         return SM(r"\s*density functional\s*$",
                   name="DFT functional",
@@ -155,7 +183,7 @@ class MethodParser(object):
             method = self.__wavefunction_models_map.get(groups[0], None)
             self.__method = groups[0]
             if method:
-                backend.addValue("electronic_structure_method", method)
+                backend.addValue("electronic_structure_method", method, self.__method_index())
             else:
                 logger.error("unknown wave-function model encountered: %s - %s" % groups)
 
@@ -177,62 +205,84 @@ class MethodParser(object):
 
     def build_dftd3_vdw_matcher(self):
 
-        energy_matcher = SM(r"\s*Edisp\s+/kcal,\s*au\s*:\s*"+RE_FLOAT+"\s+"
-                            "(?P<energy_van_der_Waals__hartree>"+RE_FLOAT+")\s*$",
-                            name="vdW energy"
+        def store_energy(backend, groups):
+            backend.addRealValue("energy_van_der_Waals", float(groups[0]), self.__config_index(),
+                                 unit="hartree")
+
+        def store_version(backend, groups):
+            backend.addValue("x_turbomole_dft_d3_version", groups[0], self.__method_index())
+            backend.addValue("van_der_Waals_method", "DFT-D3", self.__method_index())
+
+        energy_matcher = SM(r"\s*Edisp\s+/kcal,\s*au\s*:\s*"+RE_FLOAT+"\s+("+RE_FLOAT+")\s*$",
+                            name="vdW energy",
+                            startReAction=store_energy
                             )
 
-        return SM(r"\s*\|\s*DFTD3\s+(?P<x_turbomole_dft_d3_version>"
-                  r"V[0-9]+.[0-9]+\s+Rev\s+[0-9]+)\s*\|\s*$",
+        return SM(r"\s*\|\s*DFTD3\s+(V[0-9]+.[0-9]+\s+Rev\s+[0-9]+)\s*\|\s*$",
                   name="DFT-D3 version",
+                  startReAction=store_version,
                   subMatchers=[
                       energy_matcher
                   ],
-                  fixedStartValues={"van_der_Waals_method": "DFT-D3"}
                   )
 
     def build_total_energy_matcher(self):
         def set_current_energy(backend, groups):
-            backend.addRealValue("energy_current", float(groups[0]), unit="hartree")
+            backend.addRealValue("energy_current", float(groups[0]), self.__config_index(),
+                                 unit="hartree")
+            backend.addRealValue("energy_total", float(groups[0]), self.__config_index(),
+                                 unit="hartree")
 
         def store_kinetic_energy(backend, groups):
             self.__energy_kinetic = groups[0]
+            backend.addRealValue("electronic_kinetic_energy", float(groups[0]),
+                                 self.__config_index(), unit="hartree")
 
         def store_kinetic_potential(backend, groups):
             self.__energy_potential = groups[0]
+            backend.addRealValue("x_turbomole_potential_energy_final", float(groups[0]),
+                                 self.__config_index(), unit="hartree")
 
-        energy_total = SM(r"\s*\|\s*total energy\s*=\s*(?P<energy_total__hartree>"
-                          +RE_FLOAT+")\s*\|",
+        def store_wavefunc_norm(backend, groups):
+            backend.addRealValue("x_turbomole_wave_func_norm", float(groups[0]),
+                                 self.__config_index())
+
+        def store_virial_theorem(backend, groups):
+            backend.addRealValue("x_turbomole_virial_theorem", float(groups[0]),
+                                 self.__config_index())
+
+        def store_scf_convergence(backend, groups):
+            backend.addValue("number_of_scf_iterations", int(groups[0]), self.__config_index())
+
+        energy_total = SM(r"\s*\|\s*total energy\s*=\s*("+RE_FLOAT+")\s*\|",
                           name="total energy",
                           required=True,
                           startReAction=set_current_energy
                           )
-        energy_kinetic = SM(r"\s*:\s*kinetic energy\s*=\s*(?P<electronic_kinetic_energy__hartree>"
-                            + RE_FLOAT+")\s*:\s*$",
+        energy_kinetic = SM(r"\s*:\s*kinetic energy\s*=\s*("+RE_FLOAT+")\s*:\s*$",
                             name="kinetic energy",
                             required=True,
                             startReAction=store_kinetic_energy
                             )
-        energy_potential = SM(r"\s*:\s*potential energy\s*=\s*"
-                              r"(?P<x_turbomole_potential_energy_final__hartree>"+RE_FLOAT+")\s*:\s*$",
+        energy_potential = SM(r"\s*:\s*potential energy\s*=\s*("+RE_FLOAT+")\s*:\s*$",
                               name="potential energy",
                               required=True,
                               startReAction=store_kinetic_potential
                               )
-        virial_theorem = SM(r"\s*\:\s*virial theorem\s*\=\s*"
-                            r"(?P<x_turbomole_virial_theorem>"+RE_FLOAT+")\s*:\s*$",
+        virial_theorem = SM(r"\s*\:\s*virial theorem\s*\=\s*("+RE_FLOAT+")\s*:\s*$",
                             name="virial theorem",
+                            startReAction=store_virial_theorem,
                             required=True
                             )
-        wavefunction_norm = SM(r"\s*\:\s*wavefunction norm\s*\=\s*"
-                               r"(?P<x_turbomole_wave_func_norm>"+RE_FLOAT+")\s*:\s*$",
+        wavefunction_norm = SM(r"\s*\:\s*wavefunction norm\s*\=\s*("+RE_FLOAT+")\s*:\s*$",
                                name="wavefunction norm",
+                               startReAction=store_wavefunc_norm,
                                required=True
                                )
 
-        return SM(r"\s*convergence criteria satisfied after\s+"
-                  r"(?P<number_of_scf_iterations>[0-9]+)\s+iterations",
+        return SM(r"\s*convergence criteria satisfied after\s+([0-9]+)\s+iterations",
                   name="SCF end",
+                  startReAction=store_scf_convergence,
                   required=True,
                   subMatchers=[
                       energy_total,
@@ -244,19 +294,17 @@ class MethodParser(object):
                   )
 
     def build_correlation_energy_matcher(self):
-
-        def reference_hf_energy(backend, groups):
-            self.__correlation_stash["spin"] = groups[0]
-            self.__correlation_stash["e_hf"] = float(groups[1])
-
         def correlation_correction(backend, groups):
-            self.__correlation_stash["e_corr"] = float(groups[0])
+            backend.addRealValue("energy_current", float(groups[0]), self.__config_index(),
+                                 unit="hartree")
 
         def correlated_total_energy(backend, groups):
-            self.__correlation_stash["method"] = groups[0]
-            self.__correlation_stash["e_total"] = float(groups[1])
+            if groups[0] != self.__method:
+                backend.addValue("electronic_structure_method", groups[0], self.__method_index())
+            backend.addRealValue("energy_total", float(groups[1]), self.__config_index(),
+                                 unit="hartree")
 
-        correlation = SM(r"\s*\*\s*correlation\s+energy\s*:\s*("+RE_FLOAT+r")\s*\*\s*",
+        correlation = SM(r"\s*\*\s*(?:total\s+)?correlation\s+energy\s*:\s*("+RE_FLOAT+r")\s*\*\s*",
                          name="correlation energy",
                          startReAction=correlation_correction
                          )
@@ -272,11 +320,9 @@ class MethodParser(object):
 
         return SM(r"\s*\*\s*(RHF|UHF|ROHF)\s+energy\s*:\s*("+RE_FLOAT+r")\s*\*\s*$",
                   name="HF energy",
-                  startReAction=reference_hf_energy,
                   subMatchers=[
                       mp2_correlation,
                       correlation,
                       total_energy
-                  ],
-                  # onClose={None: write_data}
+                  ]
                   )

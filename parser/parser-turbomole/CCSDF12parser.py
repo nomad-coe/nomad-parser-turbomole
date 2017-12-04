@@ -16,10 +16,12 @@ class CCSDF12parser(object):
         self.__context = context
         self.__backend = None
         self.__previous_energy = None
+        self.__auxiliary_indices = {"method": -1, "config": -1}
         self.__correlation_indices = dict()
 
     def purge_data(self):
         self.__previous_energy = None
+        self.__auxiliary_indices = {"method": -1, "config": -1}
         self.__correlation_indices = dict()
 
     def set_backend(self, backend):
@@ -47,84 +49,70 @@ class CCSDF12parser(object):
             self.__context["geo"].build_auxiliary_basis_matcher(),
             self.__build_mp2_starting_point_matcher(),
             self.__build_cc_scf_matcher(),
-            self.__context["method"].build_correlation_energy_matcher(),
+            self.__context["method"].build_correlation_energy_matcher(),  # for CCSD(T) corrections
             self.__context.build_end_time_matcher("ccsdf12")
         ]
 
         return self.__context.build_module_matcher("ccsdf12", sub_matchers, "CCSDF12")
 
     def __create_auxiliary_sections(self, backend, method):
-        if method == self.__context["method"].get_main_method():
-            # main method invoked, write into the primary single_configuration_calculation
-            index_config = self.__context.index_configuration()
-            index_method = self.__context.index_method()
-        else:
+        if self.__context["method"].get_main_method() != method:
             # intermediate calculation, create extra method/config sections for results
-            index_config = backend.openSection("section_single_configuration_calculation")
-            index_method = backend.openSection("section_method")
-            backend.addValue("single_configuration_to_calculation_method_ref", index_method,
-                             index_config)
+            self.__auxiliary_indices["config"] = backend.openSection(
+                "section_single_configuration_calculation")
+            self.__auxiliary_indices["method"] = backend.openSection("section_method")
+            backend.addValue("single_configuration_to_calculation_method_ref",
+                             self.__auxiliary_indices["method"], self.__auxiliary_indices["config"])
             backend.addValue("single_configuration_calculation_to_system_ref",
-                             self.__context.index_system(), index_config)
-            backend.addValue("electronic_structure_method", method, index_method)
-        return index_config, index_method
+                             self.__context.index_system(), self.__auxiliary_indices["config"])
+        else:
+            self.__auxiliary_indices["config"] = self.__context.index_configuration()
+            self.__auxiliary_indices["method"] = self.__context.index_method()
+        self.__context["method"].set_target_indices(self.__auxiliary_indices["config"],
+                                                    self.__auxiliary_indices["method"])
 
-    def __close_auxiliary_sections(self, backend, index_config, index_method):
-        if index_config != self.__context.index_configuration():
-            backend.closeSection("section_single_configuration_calculation", index_config)
-        if index_method != self.__context.index_method():
-            backend.closeSection("section_method", index_method)
-
-    def __write_correlation_data(self, backend, data, index_config):
-        self.__correlation_indices[data["method"]] = index_config
-        backend.addRealValue("energy_current", data["e_corr"], index_config,
-                             unit="hartree")
-        backend.addRealValue("energy_total", data["e_total"], index_config,
-                             unit="hartree")
+    def __close_auxiliary_sections(self, backend, gIndex, section):
+        if self.__auxiliary_indices["config"] != self.__context.index_configuration():
+            backend.closeSection("section_single_configuration_calculation",
+                                 self.__auxiliary_indices["config"])
+        if self.__auxiliary_indices["method"] != self.__context.index_method():
+            backend.closeSection("section_method", self.__auxiliary_indices["method"])
+        self.__auxiliary_indices["config"] = -1
+        self.__auxiliary_indices["method"] = -1
+        self.__context["method"].set_target_indices()
 
     def __build_mp2_starting_point_matcher(self):
 
-        def write_data(backend, gIndex, section):
-            data = self.__context["method"].get_correlation_method_data()
-            index_config, index_method = self.__create_auxiliary_sections(backend, data["method"])
-            self.__write_correlation_data(backend, data, index_config)
-            self.__close_auxiliary_sections(backend, index_config, index_method)
+        def setup(backend, gIndex, section):
+            self.__create_auxiliary_sections(backend, "MP2")
 
         return SM(r"\s*Calculate\s+integrals\s+\(ia\|jb\)\s+for\s+MP2\s+start\s+guess\s*$",
                   name="MP2 starting point",
                   subMatchers=[
                       self.__context["method"].build_correlation_energy_matcher()
                   ],
-                  onClose={None: write_data}
+                  onOpen={None: setup},
+                  onClose={None: self.__close_auxiliary_sections}
                   )
 
-
     def __build_cc_scf_matcher(self):
-        iterations = list()
+        references = {"section_single_configuration_calculation": None}
 
         def extract_iteration_data(backend, groups):
-            e_tot = float(groups[0])
+            index_scf = backend.openSection("section_scf_iteration")
+            self.__backend.setSectionInfo("section_scf_iteration", index_scf, references)
             if self.__previous_energy:
-                iterations.append({"e_tot": e_tot, "e_change": e_tot - self.__previous_energy})
-            else:
-                iterations.append({"e_tot": e_tot})
-            self.__previous_energy = e_tot
+                backend.addRealValue("energy_change_scf_iteration",
+                                     float(groups[0]) - self.__previous_energy, index_scf,
+                                     unit="hartree")
+            backend.addRealValue("energy_total_scf_iteration", float(groups[0]), index_scf,
+                                 unit="hartree")
+            self.__previous_energy = float(groups[0])
+            backend.closeSection("section_scf_iteration", index_scf)
 
         def convergence(backend, groups):
-            if len(iterations) != int(groups[0]):
-                logger.error("number of CCSD-iteration doesn't match the collected data! "
-                             "(found %i, but there should be %i)" %
-                             (len(iterations), int(groups[0])))
-
-        def write_data(backend, gIndex, section):
-            data = self.__context["method"].get_correlation_method_data()
-            index_config, index_method = self.__create_auxiliary_sections(backend, data["method"])
-            # TODO: write SCF data
-            # backend.addRealValue("energy_change_scf_iteration",
-            #                      float(groups[0])-self.__previous_energy, unit="hartree")
-            # energy_total_scf_iteration
-            self.__write_correlation_data(backend, data, index_config)
-            self.__close_auxiliary_sections(backend, index_config, index_method)
+            backend.addValue("number_of_scf_iterations", int(groups[0]),
+                             self.__auxiliary_indices["config"])
 
         scf_iteration = SM(r"\s*[0-9]+\s+("+RE_FLOAT+")" + 5 * (r"\s+"+RE_FLOAT) + "\s*$",
                            name="iteration",
@@ -144,6 +132,11 @@ class CCSDF12parser(object):
                        ],
                        )
 
+        def setup(backend, gIndex, section):
+            self.__create_auxiliary_sections(backend, "CCSD")
+            references["section_single_configuration_calculation"] = \
+                self.__auxiliary_indices["config"]
+
         return SM(r"\s*\*\s*OPTIMIZATION\s+OF\s+THE\s+GROUND\s+"
                   r"STATE\s+CLUSTER\s+AMPLITUDES\s*\*\s*$",
                   name="CC ground state",
@@ -151,5 +144,6 @@ class CCSDF12parser(object):
                       scf_cycle,
                       self.__context["method"].build_correlation_energy_matcher()
                   ],
-                  onClose={None: write_data}
+                  onOpen={None: setup},
+                  onClose={None: self.__close_auxiliary_sections}
                   )
