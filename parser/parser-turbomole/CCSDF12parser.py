@@ -49,7 +49,7 @@ class CCSDF12parser(object):
             self.__context["geo"].build_auxiliary_basis_matcher(),
             self.__build_mp2_starting_point_matcher(),
             self.__build_cc_scf_matcher(),
-            self.__context["method"].build_correlation_energy_matcher(),  # for CCSD(T) corrections
+            self.__build_ccsdt_correction_matcher(),
             self.__context.build_end_time_matcher("ccsdf12")
         ]
 
@@ -85,6 +85,7 @@ class CCSDF12parser(object):
 
         def setup(backend, gIndex, section):
             self.__create_auxiliary_sections(backend, "MP2")
+            self.__correlation_indices["MP2"] = self.__auxiliary_indices["config"]
 
         return SM(r"\s*Calculate\s+integrals\s+\(ia\|jb\)\s+for\s+MP2\s+start\s+guess\s*$",
                   name="MP2 starting point",
@@ -136,12 +137,47 @@ class CCSDF12parser(object):
             self.__create_auxiliary_sections(backend, "CCSD")
             references["section_single_configuration_calculation"] = \
                 self.__auxiliary_indices["config"]
+            self.__correlation_indices["CCSD"] = self.__auxiliary_indices["config"]
+            if "MP2" in self.__correlation_indices:
+                index_link = backend.openSection("section_calculation_to_calculation_refs")
+                self.__backend.setSectionInfo("section_calculation_to_calculation_refs",
+                                              index_link, references)
+                backend.addValue("calculation_to_calculation_ref",
+                                 self.__correlation_indices["MP2"], index_link)
+                backend.addValue("calculation_to_calculation_kind", "starting_point", index_link)
+                backend.closeSection("section_calculation_to_calculation_refs", index_link)
 
         return SM(r"\s*\*\s*OPTIMIZATION\s+OF\s+THE\s+GROUND\s+"
                   r"STATE\s+CLUSTER\s+AMPLITUDES\s*\*\s*$",
                   name="CC ground state",
                   subMatchers=[
                       scf_cycle,
+                      self.__context["method"].build_correlation_energy_matcher()
+                  ],
+                  onOpen={None: setup},
+                  onClose={None: self.__close_auxiliary_sections}
+                  )
+
+    def __build_ccsdt_correction_matcher(self):
+        references = {"section_single_configuration_calculation": None}
+
+        def setup(backend, gIndex, section):
+            self.__create_auxiliary_sections(backend, "CCSD(T)")
+            references["section_single_configuration_calculation"] = \
+                self.__auxiliary_indices["config"]
+            self.__correlation_indices["CCSD(T)"] = self.__auxiliary_indices["config"]
+            if "CCSD" in self.__correlation_indices:
+                index_link = backend.openSection("section_calculation_to_calculation_refs")
+                self.__backend.setSectionInfo("section_calculation_to_calculation_refs",
+                                              index_link, references)
+                backend.addValue("calculation_to_calculation_ref",
+                                 self.__correlation_indices["CCSD"], index_link)
+                backend.addValue("calculation_to_calculation_kind", "starting_point", index_link)
+                backend.closeSection("section_calculation_to_calculation_refs", index_link)
+
+        return SM(r"\s*time in triples corr",
+                  name="CCSD(T) correction",
+                  subMatchers=[
                       self.__context["method"].build_correlation_energy_matcher()
                   ],
                   onOpen={None: setup},
