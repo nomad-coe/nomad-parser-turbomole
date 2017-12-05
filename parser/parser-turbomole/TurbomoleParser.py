@@ -60,6 +60,7 @@ class TurbomoleParserContext(object):
     def __init__(self):
         self.__data = dict()
         self.__invocations = list()
+        self.__index_overwrites = {"config": None, "method": None, "system": None}
         self.__sampling_mode_section = None
         self.__geometry_converged = None
 
@@ -75,13 +76,24 @@ class TurbomoleParserContext(object):
         for key, sub_parser in self.__data.items():
             yield key, sub_parser
 
+    def set_index_overwrites(self, index_config=None, index_method=None, index_system=None):
+        self.__index_overwrites["config"] = index_config
+        self.__index_overwrites["method"] = index_method
+        self.__index_overwrites["system"] = index_system
+
     def index_configuration(self):
+        if self.__index_overwrites["config"]:
+            return self.__index_overwrites["config"]
         return self.__invocations[-1].index_config
 
     def index_method(self):
+        if self.__index_overwrites["method"]:
+            return self.__index_overwrites["method"]
         return self.__invocations[-1].index_method
 
     def index_system(self):
+        if self.__index_overwrites["system"]:
+            return self.__index_overwrites["system"]
         return self.__invocations[-1].index_geo
 
     def set_sampling_mode_section(self, index_settings, geo_converged=None):

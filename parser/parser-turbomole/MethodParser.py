@@ -58,13 +58,9 @@ class MethodParser(object):
         self.__functional = None
         self.__energy_kinetic = None
         self.__energy_potential = None
-        self.__indices_to_write = {"method": -1, "config": -1}
 
     def set_backend(self, backend):
         self.__backend = backend
-
-    def set_target_indices(self, index_config=-1, index_method=-1):
-        self.__indices_to_write = {"method": index_config, "config": index_method}
 
     def get_energy_kinetic(self):
         return self.__energy_kinetic
@@ -75,23 +71,11 @@ class MethodParser(object):
     def get_main_method(self):
         return self.__method
 
-    def __method_index(self):
-        if self.__indices_to_write["method"] == -1:
-            return self.__context.index_method()
-        else:
-            return self.__indices_to_write["method"]
-
-    def __config_index(self):
-        if self.__indices_to_write["config"] == -1:
-            return self.__context.index_configuration()
-        else:
-            return self.__indices_to_write["config"]
-
     # matcher generation methods
 
     def add_default_functional(self, backend, gIndex, section):
         if not self.__method:
-            index_method = self.__method_index()
+            index_method = self.__context.index_method()
             self.__method = "DFT"
             self.__backend.addValue("electronic_structure_method", "DFT", index_method)
             self.__backend.addValue("calculation_method_kind", "absolute", index_method)
@@ -113,11 +97,11 @@ class MethodParser(object):
     def build_dft_functional_matcher(self):
         def set_exchange_part(backend, groups):
             backend.addValue("x_turbomole_functional_type_exchange", groups[0],
-                             self.__method_index())
+                             self.__context.index_method())
 
         def set_correlation_part(backend, groups):
             backend.addValue("x_turbomole_functional_type_correlation", groups[0],
-                             self.__method_index())
+                             self.__context.index_method())
 
         exchange = SM(r"\s*exchange:\s*(.+)",
                       name="exchange part",
@@ -129,7 +113,7 @@ class MethodParser(object):
                          )
 
         def set_functional(backend, groups):
-            index_method = self.__method_index()
+            index_method = self.__context.index_method()
             if groups[0] in self.__functional_map:
                 self.__functional = self.__functional_map[groups[0]]
             else:
@@ -183,7 +167,8 @@ class MethodParser(object):
             method = self.__wavefunction_models_map.get(groups[0], None)
             self.__method = groups[0]
             if method:
-                backend.addValue("electronic_structure_method", method, self.__method_index())
+                backend.addValue("electronic_structure_method", method,
+                                 self.__context.index_method())
             else:
                 logger.error("unknown wave-function model encountered: %s - %s" % groups)
 
@@ -206,12 +191,12 @@ class MethodParser(object):
     def build_dftd3_vdw_matcher(self):
 
         def store_energy(backend, groups):
-            backend.addRealValue("energy_van_der_Waals", float(groups[0]), self.__config_index(),
-                                 unit="hartree")
+            backend.addRealValue("energy_van_der_Waals", float(groups[0]),
+                                 self.__context.index_configuration(), unit="hartree")
 
         def store_version(backend, groups):
-            backend.addValue("x_turbomole_dft_d3_version", groups[0], self.__method_index())
-            backend.addValue("van_der_Waals_method", "DFT-D3", self.__method_index())
+            backend.addValue("x_turbomole_dft_d3_version", groups[0], self.__context.index_method())
+            backend.addValue("van_der_Waals_method", "DFT-D3", self.__context.index_method())
 
         energy_matcher = SM(r"\s*Edisp\s+/kcal,\s*au\s*:\s*"+RE_FLOAT+"\s+("+RE_FLOAT+")\s*$",
                             name="vdW energy",
@@ -228,31 +213,32 @@ class MethodParser(object):
 
     def build_total_energy_matcher(self):
         def set_current_energy(backend, groups):
-            backend.addRealValue("energy_current", float(groups[0]), self.__config_index(),
-                                 unit="hartree")
-            backend.addRealValue("energy_total", float(groups[0]), self.__config_index(),
-                                 unit="hartree")
+            backend.addRealValue("energy_current", float(groups[0]),
+                                 self.__context.index_configuration(), unit="hartree")
+            backend.addRealValue("energy_total", float(groups[0]),
+                                 self.__context.index_configuration(), unit="hartree")
 
         def store_kinetic_energy(backend, groups):
             self.__energy_kinetic = groups[0]
             backend.addRealValue("electronic_kinetic_energy", float(groups[0]),
-                                 self.__config_index(), unit="hartree")
+                                 self.__context.index_configuration(), unit="hartree")
 
         def store_kinetic_potential(backend, groups):
             self.__energy_potential = groups[0]
             backend.addRealValue("x_turbomole_potential_energy_final", float(groups[0]),
-                                 self.__config_index(), unit="hartree")
+                                 self.__context.index_configuration(), unit="hartree")
 
         def store_wavefunc_norm(backend, groups):
             backend.addRealValue("x_turbomole_wave_func_norm", float(groups[0]),
-                                 self.__config_index())
+                                 self.__context.index_configuration())
 
         def store_virial_theorem(backend, groups):
             backend.addRealValue("x_turbomole_virial_theorem", float(groups[0]),
-                                 self.__config_index())
+                                 self.__context.index_configuration())
 
         def store_scf_convergence(backend, groups):
-            backend.addValue("number_of_scf_iterations", int(groups[0]), self.__config_index())
+            backend.addValue("number_of_scf_iterations", int(groups[0]),
+                             self.__context.index_configuration())
 
         energy_total = SM(r"\s*\|\s*total energy\s*=\s*("+RE_FLOAT+")\s*\|",
                           name="total energy",
@@ -295,14 +281,15 @@ class MethodParser(object):
 
     def build_correlation_energy_matcher(self):
         def correlation_correction(backend, groups):
-            backend.addRealValue("energy_current", float(groups[0]), self.__config_index(),
-                                 unit="hartree")
+            backend.addRealValue("energy_current", float(groups[0]),
+                                 self.__context.index_configuration(), unit="hartree")
 
         def correlated_total_energy(backend, groups):
             if groups[0] != self.__method:
-                backend.addValue("electronic_structure_method", groups[0], self.__method_index())
-            backend.addRealValue("energy_total", float(groups[1]), self.__config_index(),
-                                 unit="hartree")
+                backend.addValue("electronic_structure_method", groups[0],
+                                 self.__context.index_method())
+            backend.addRealValue("energy_total", float(groups[1]),
+                                 self.__context.index_configuration(), unit="hartree")
 
         correlation = SM(r"\s*\*\s*(?:total\s+)?correlation\s+energy\s*:\s*("+RE_FLOAT+r")\s*\*\s*",
                          name="correlation energy",

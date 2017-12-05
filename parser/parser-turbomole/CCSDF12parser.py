@@ -68,8 +68,8 @@ class CCSDF12parser(object):
         else:
             self.__auxiliary_indices["config"] = self.__context.index_configuration()
             self.__auxiliary_indices["method"] = self.__context.index_method()
-        self.__context["method"].set_target_indices(self.__auxiliary_indices["config"],
-                                                    self.__auxiliary_indices["method"])
+        self.__context.set_index_overwrites(index_config=self.__auxiliary_indices["config"],
+                                            index_method=self.__auxiliary_indices["method"])
 
     def __close_auxiliary_sections(self, backend, gIndex, section):
         if self.__auxiliary_indices["config"] != self.__context.index_configuration():
@@ -79,7 +79,7 @@ class CCSDF12parser(object):
             backend.closeSection("section_method", self.__auxiliary_indices["method"])
         self.__auxiliary_indices["config"] = -1
         self.__auxiliary_indices["method"] = -1
-        self.__context["method"].set_target_indices()
+        self.__context.set_index_overwrites()
 
     def __build_mp2_starting_point_matcher(self):
 
