@@ -23,6 +23,7 @@ from ESCFparser import ESCFparser
 from GRADparser import GRADparser
 from RIDFTparser import RIDFTparser
 from RICC2parser import RICC2parser
+from RIRPAparser import RIRPAparser
 from STATPTparser import STATPTparser
 
 ############################################################
@@ -353,12 +354,14 @@ def build_root_parser(context):
                   ESCFparser(context).build_parser(),
                   DSCFparser(context).build_parser(),
                   GRADparser(context).build_parser(),
-                  RIDFTparser(context).build_parser(),
                   RICC2parser(context).build_parser(),
+                  RIDFTparser(context).build_parser(),
+                  RIRPAparser(context).build_parser(),
                   STATPTparser(context).build_parser(),
                   generic
               ]
               )
+
 
 def build_occupation_smearing_matcher():
     return SM (name = "smearing",
