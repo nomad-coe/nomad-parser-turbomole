@@ -27,7 +27,11 @@ def build_profiling_matcher(title_regex):
                      name="profiling",
                      coverageIgnore=True
                      ),
-                  SM(r"\s*[A-z0-9\._+-]+(?: [A-z0-9\._+-]+)?(?:\s+"+RE_FLOAT+"){4}\s*$",
+                  SM(r"\s*module\s+sec\s+%\s+sec\s+%\s*$",
+                     name="profiling",
+                     coverageIgnore=True
+                     ),
+                  SM(r"\s*[A-z0-9\._+-]+(?: [A-z0-9\._+-]+)?(?:\s+"+RE_FLOAT+"){4,}\s*$",
                      name="profiling",
                      repeats=True,
                      coverageIgnore=True

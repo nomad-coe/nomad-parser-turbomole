@@ -49,6 +49,7 @@ class RIRPAparser(object):
                 "\s*\*\s*RIJ\s+AUXILIARY\s+BASIS\s+SET\s+information:\s*$"),
             self.__build_rpa_total_energy_matcher(),
             self.__context["gradient"].build_gradient_matcher(),
+            Common.build_profiling_matcher(r"\s*Rirpa\s+profiling\s+cpu\s+wall\s+ratio\s*$"),
             self.__context.build_end_time_matcher("rirpa")
         ]
 
