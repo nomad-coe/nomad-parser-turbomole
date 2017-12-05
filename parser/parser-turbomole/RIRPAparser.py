@@ -76,6 +76,37 @@ class RIRPAparser(object):
             backend.addRealValue("energy_current", float(groups[0]),
                                  self.__context.index_configuration(), unit="hartree")
 
+        def get_hf_energy(backend, groups):
+            e_hf = float(groups[0])
+            if abs(e_hf) < 1E-10:
+                return
+            index_config = backend.openSection("section_single_configuration_calculation")
+            index_method = backend.openSection("section_method")
+            references = {"section_method": index_method}
+            backend.addValue("single_configuration_to_calculation_method_ref",
+                             index_method, index_config)
+            backend.addValue("single_configuration_calculation_to_system_ref",
+                             self.__context.index_system(), index_config)
+            backend.addValue("electronic_structure_method", "DFT", index_method)
+            backend.addValue("calculation_method_kind", "absolute", index_method)
+            index_xc = backend.openSection("section_XC_functionals")
+            backend.setSectionInfo("section_XC_functionals", index_xc, references)
+            backend.addValue('XC_functional_name', "HF_X", index_xc)
+            backend.closeSection("section_XC_functionals", index_xc)
+            backend.addRealValue("energy_total", e_hf, index_method, unit="hartree")
+
+            index_link = backend.openSection("section_calculation_to_calculation_refs")
+            references = {"section_single_configuration_calculation":
+                              self.__context.index_configuration()}
+            backend.setSectionInfo("section_calculation_to_calculation_refs", index_link,
+                                   references)
+            backend.addValue("calculation_to_calculation_kind", "source_calculation", index_link)
+            backend.addValue("calculation_to_calculation_ref", index_config, index_link)
+            backend.closeSection("section_calculation_to_calculation_refs", index_link)
+
+            backend.closeSection("section_single_configuration_calculation", index_config)
+            backend.closeSection("section_method", index_method)
+
         total_energy = SM(r"\s*\|\s*HXX\+RIRPA\s+total\s+energy\s*=\s*("+RE_FLOAT+")\s*\|\s*$",
                           name="RPA total energy",
                           startReAction=get_total_energy
@@ -84,10 +115,15 @@ class RIRPAparser(object):
                          name="RPA correlation ",
                          startReAction=get_correlation_energy
                          )
+        hf_energy = SM(r"\s*:\s*HXX\s+total\s+energy\s*=\s*("+RE_FLOAT+")\s*:\s*$",
+                       name="RPA total energy",
+                       startReAction=get_hf_energy
+                       )
 
         return SM(r"\s*Complex\s+frequency\s+integration\s*$",
                   subMatchers=[
                       total_energy,
-                      correlation
+                      correlation,
+                      hf_energy
                   ]
                   )
