@@ -37,6 +37,7 @@ IGNORED_MODULES = [
     "dscfserver",
     "eiger",
     "gradserver",
+    "define"
 ]
 
 
@@ -330,11 +331,18 @@ def build_root_parser(context):
 
     def skip_ignored_modules(backend, groups):
         backend.closeSection("section_run", 0)
-        raise_(SkipFileException, "MPI slave output only")
+        raise_(SkipFileException, "module ignored, doesn't produce interesting data")
     ignored_modules = "|".join(IGNORED_MODULES)
     skip_modules = SM(r"\s*("+ignored_modules+")\s*\(([^\)]+)\)\s*\:\s*TURBOMOLE\s+([a-zA-Z0-9.]+)",
                       name="ignored module",
                       startReAction=skip_ignored_modules)
+
+    def catch_abnormal_termination(backend, groups):
+        backend.closeSection("section_run", 0)
+        raise_(SkipFileException, "calculation ignored due to abnormal termination")
+    catch_crashed_modules = SM(r"\s*([^\s]+)\s+ended\s+abnormally\s*$",
+                               name="crashed module",
+                               startReAction=catch_abnormal_termination)
 
     return SM(name="Root",
               startReStr="",
@@ -358,7 +366,8 @@ def build_root_parser(context):
                   RIDFTparser(context).build_parser(),
                   RIRPAparser(context).build_parser(),
                   STATPTparser(context).build_parser(),
-                  generic
+                  generic,
+                  catch_crashed_modules
               ]
               )
 
