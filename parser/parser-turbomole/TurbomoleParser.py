@@ -140,6 +140,12 @@ class TurbomoleParserContext(object):
             self.__invocations[-1].module = groups[0]
             backend.addValue("x_turbomole_module", groups[0], self.index_configuration())
 
+        def catch_abnormal_termination(backend, groups):
+            raise_(SkipFileException, "calculation ignored due to abnormal termination")
+        catch_crashed_modules = SM(r"\s*([^\s]+)\s+ended\s+abnormally\s*$",
+                                   name="crashed module",
+                                   startReAction=catch_abnormal_termination)
+
         on_close = {
                       "section_system": close_section_system,
                       "section_method": close_section_method
@@ -161,7 +167,7 @@ class TurbomoleParserContext(object):
                   },
                   onClose=on_close,
                   startReAction=process_module_invocation,
-                  subMatchers=subMatchers
+                  subMatchers=subMatchers + [catch_crashed_modules]
                   )
 
     def build_start_time_matcher(self):
@@ -337,13 +343,6 @@ def build_root_parser(context):
                       name="ignored module",
                       startReAction=skip_ignored_modules)
 
-    def catch_abnormal_termination(backend, groups):
-        backend.closeSection("section_run", 0)
-        raise_(SkipFileException, "calculation ignored due to abnormal termination")
-    catch_crashed_modules = SM(r"\s*([^\s]+)\s+ended\s+abnormally\s*$",
-                               name="crashed module",
-                               startReAction=catch_abnormal_termination)
-
     return SM(name="Root",
               startReStr="",
               forwardMatch=True,
@@ -366,8 +365,7 @@ def build_root_parser(context):
                   RIDFTparser(context).build_parser(),
                   RIRPAparser(context).build_parser(),
                   STATPTparser(context).build_parser(),
-                  generic,
-                  catch_crashed_modules
+                  generic
               ]
               )
 
