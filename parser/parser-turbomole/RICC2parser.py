@@ -37,7 +37,6 @@ class RICC2parser(object):
                     )
 
         sub_matchers = [
-            self.__context.build_start_time_matcher(),
             header,
             self.__context["geo"].build_qm_geometry_matcher(),
             self.__context["geo"].build_orbital_basis_matcher(),
@@ -46,7 +45,6 @@ class RICC2parser(object):
             self.build_ref_energy_matcher(),
             self.build_ground_state_first_order_properties_matcher(),
             self.__context["gradient"].build_gradient_matcher(),
-            self.__context.build_end_time_matcher("ricc2")
         ]
 
         return self.__context.build_module_matcher("ricc2", sub_matchers, "RICC2")

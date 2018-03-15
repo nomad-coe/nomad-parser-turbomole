@@ -38,7 +38,6 @@ class RIDFTparser(object):
         auxbasis_title = r"\s*RI-J\s+AUXILIARY\s+BASIS\s+SET\s+information\s*:\s*$"
 
         sub_matchers = [
-            self.__context.build_start_time_matcher(),
             header,
             self.__context["method"].build_uhf_matcher(),
             self.__context["geo"].build_qm_geometry_matcher(),
@@ -52,7 +51,6 @@ class RIDFTparser(object):
             self.__build_scf_cycle_matcher(),
             self.__context["method"].build_total_energy_matcher(),
             self.__context["orbitals"].build_eigenstate_matcher(),
-            self.__context.build_end_time_matcher("ridft")
         ]
 
         return self.__context.build_module_matcher("ridft", sub_matchers, "RIDFT",

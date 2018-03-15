@@ -37,7 +37,6 @@ class RIRPAparser(object):
                     )
 
         sub_matchers = [
-            self.__context.build_start_time_matcher(),
             header,
             self.__context["geo"].build_qm_geometry_matcher(),
             self.__context["geo"].build_orbital_basis_matcher(
@@ -50,7 +49,6 @@ class RIRPAparser(object):
             self.__build_rpa_total_energy_matcher(),
             self.__context["gradient"].build_gradient_matcher(),
             Common.build_profiling_matcher(r"\s*Rirpa\s+profiling\s+cpu\s+wall\s+ratio\s*$"),
-            self.__context.build_end_time_matcher("rirpa")
         ]
 
         return self.__context.build_module_matcher("rirpa", sub_matchers, "RIRPA")

@@ -152,6 +152,8 @@ class TurbomoleParserContext(object):
                   }
         if finalizer:
             on_close[None] = finalizer
+        start_time = self.build_start_time_matcher()
+        end_time = self.build_end_time_matcher(module_pattern)
 
         return SM(r"\s*("+module_pattern+")\s*\(([^\)]+)\)\s*\:\s*TURBOMOLE\s+([a-zA-Z0-9.]+)",
                   name=(module_name if module_name else "unknown") + " module",
@@ -167,7 +169,7 @@ class TurbomoleParserContext(object):
                   },
                   onClose=on_close,
                   startReAction=process_module_invocation,
-                  subMatchers=subMatchers + [catch_crashed_modules]
+                  subMatchers=[start_time] + subMatchers + [end_time, catch_crashed_modules]
                   )
 
     def build_start_time_matcher(self):

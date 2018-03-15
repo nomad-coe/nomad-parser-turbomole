@@ -41,7 +41,6 @@ class CCSDF12parser(object):
                     )
 
         sub_matchers = [
-            self.__context.build_start_time_matcher(),
             header,
             self.__context["geo"].build_qm_geometry_matcher(),
             self.__context["geo"].build_orbital_basis_matcher(),
@@ -50,7 +49,6 @@ class CCSDF12parser(object):
             self.__build_mp2_starting_point_matcher(),
             self.__build_cc_scf_matcher(),
             self.__build_ccsdt_correction_matcher(),
-            self.__context.build_end_time_matcher("ccsdf12")
         ]
 
         return self.__context.build_module_matcher("ccsdf12", sub_matchers, "CCSDF12")

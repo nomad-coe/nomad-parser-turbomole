@@ -34,12 +34,10 @@ class ESCFparser(object):
                     )
 
         sub_matchers = [
-            self.__context.build_start_time_matcher(),
             header,
             self.__context["geo"].build_qm_geometry_matcher(),
             self.__context["geo"].build_orbital_basis_matcher(),
             self.__build_gw_matcher(),
-            self.__context.build_end_time_matcher("escf")
         ]
 
         return self.__context.build_module_matcher("escf", sub_matchers, "ESCF")

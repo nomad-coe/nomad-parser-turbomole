@@ -36,7 +36,6 @@ class DSCFparser(object):
                     )
 
         sub_matchers = [
-            self.__context.build_start_time_matcher(),
             header,
             self.__context["method"].build_uhf_matcher(),
             self.__context["geo"].build_qm_geometry_matcher(),
@@ -49,7 +48,6 @@ class DSCFparser(object):
             self.__context["method"].build_total_energy_matcher(),
             self.__context["orbitals"].build_eigenstate_matcher(),
             Common.build_profiling_matcher(r"\s*dscf profiling\s*$"),
-            self.__context.build_end_time_matcher("dscf")
         ]
 
         return self.__context.build_module_matcher("dscf", sub_matchers, "DSCF",

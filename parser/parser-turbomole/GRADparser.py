@@ -36,7 +36,6 @@ class GRADparser(object):
                     )
 
         sub_matchers = [
-            self.__context.build_start_time_matcher(),
             header,
             self.__context["geo"].build_qm_geometry_matcher(),
             self.__context["geo"].build_orbital_basis_matcher(),
@@ -45,7 +44,6 @@ class GRADparser(object):
             self.__context["method"].build_dftd3_vdw_matcher(),
             self.__context["gradient"].build_gradient_matcher(),
             Common.build_profiling_matcher(r"\s*grad(?:\.all)? profiling\s*$"),
-            self.__context.build_end_time_matcher("grad")
         ]
 
         return self.__context.build_module_matcher("grad", sub_matchers, "GRAD",

@@ -54,7 +54,6 @@ class AOFORCEparser(object):
                     )
 
         sub_matchers = [
-            self.__context.build_start_time_matcher(),
             header,
             self.__context["geo"].build_qm_geometry_matcher(),
             self.__context["geo"].build_orbital_basis_matcher(),
@@ -65,7 +64,6 @@ class AOFORCEparser(object):
             self.__build_normal_mode_file_matcher(),
             self.__build_normal_modes_matcher(),
             self.__build_total_energy_matcher(),
-            self.__context.build_end_time_matcher("grad")
         ]
 
         return self.__context.build_module_matcher("force", sub_matchers, "AOFORCE",
