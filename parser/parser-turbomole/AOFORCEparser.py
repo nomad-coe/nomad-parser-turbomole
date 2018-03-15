@@ -21,6 +21,8 @@ class AOFORCEparser(object):
         self.__hessian = None
         self.__modes = None
         self.__energies = None
+        self.__activity_infrared = None
+        self.__activity_raman = None
         self.__intensities = None
         self.__current_columns = None
         self.__current_row = None
@@ -31,6 +33,8 @@ class AOFORCEparser(object):
         self.__hessian = None
         self.__modes = None
         self.__energies = None
+        self.__activity_infrared = None
+        self.__activity_raman = None
         self.__intensities = None
         self.__current_columns = None
         self.__current_row = None
@@ -171,6 +175,10 @@ class AOFORCEparser(object):
             self.__energies[:] = 0.0
             self.__intensities = np.ndarray(shape=(3 * n_atoms), dtype=float)
             self.__intensities[:] = 0.0
+            self.__activity_infrared = np.ndarray(shape=(3 * n_atoms), dtype=bool)
+            self.__activity_infrared[:] = False
+            self.__activity_raman = np.ndarray(shape=(3 * n_atoms), dtype=bool)
+            self.__activity_raman[:] = False
             backend.addValue("x_turbomole_vibrations_num_modes", 3 * n_atoms)
             self.__current_columns = list()
             self.__current_row = -1
@@ -178,6 +186,7 @@ class AOFORCEparser(object):
     def __build_normal_modes_matcher(self):
         re_header = re.compile(r"\s*([0-9]+)")
         re_element = re.compile(r"\s*("+RE_FLOAT+")")
+        re_activity = re.compile(r"\s*(-|YES)")
         indices = {"x": 0, "y": 1, "z": 2}
 
         def process_header(backend, groups):
@@ -206,6 +215,24 @@ class AOFORCEparser(object):
                 value = float(match.group(0))
                 self.__energies[self.__current_columns[index]] = value
                 match = re_element.match(groups[0], pos=match.end(0))
+                index += 1
+
+        def extract_infrared_activity(backend, groups):
+            match = re_activity.match(groups[0])
+            index = 0
+            while match:
+                value = match.group(0) == "YES"
+                self.__activity_infrared[self.__current_columns[index]] = value
+                match = re_activity.match(groups[0], pos=match.end(0))
+                index += 1
+
+        def extract_raman_activity(backend, groups):
+            match = re_activity.match(groups[0])
+            index = 0
+            while match:
+                value = match.group(0) == "YES"
+                self.__activity_raman[self.__current_columns[index]] = value
+                match = re_activity.match(groups[0], pos=match.end(0))
                 index += 1
 
         def extract_intensities(backend, groups):
@@ -237,6 +264,10 @@ class AOFORCEparser(object):
                                    self.__context.index_configuration(), unit="inversecm")
             backend.addArrayValues("x_turbomole_vibrations_intensities", self.__intensities,
                                    self.__context.index_configuration(), unit="kcal * mole ** -1")
+            backend.addArrayValues("x_turbomole_vibrations_infrared_activity",
+                                   self.__activity_infrared, self.__context.index_configuration())
+            backend.addArrayValues("x_turbomole_vibrations_raman_activity", self.__activity_raman,
+                                   self.__context.index_configuration())
 
         frequencies = SM(r"\s*frequency((?:\s+"+RE_FLOAT+")+)\s*$",
                          name="frequencies",
@@ -248,6 +279,16 @@ class AOFORCEparser(object):
                          required=True,
                          startReAction=extract_intensities
                          )
+        activity_infrared = SM(r"\s*IR((?:\s+(?:-|YES))+)\s*$",
+                               name="IR activity",
+                               required=True,
+                               startReAction=extract_infrared_activity
+                               )
+        activity_raman = SM(r"\s*RAMAN((?:\s+(?:-|YES))+)\s*$",
+                            name="RAMAN activity",
+                            required=True,
+                            startReAction=extract_raman_activity
+                            )
 
         block_row = SM(r"\s*(?:([0-9]+)\s+[A-z]+\s+)?([xyz])((?:\s+"+RE_FLOAT+")+)\s*$",
                        name="mode displacements",
@@ -261,7 +302,9 @@ class AOFORCEparser(object):
                           repeats=True,
                           subMatchers=[
                               frequencies,
+                              activity_infrared,
                               intensities,
+                              activity_raman,
                               block_row
                           ]
                           )
@@ -305,7 +348,10 @@ class AOFORCEparser(object):
                           name="normal modes file root",
                           onOpen={None: prepare_data},
                           subMatchers=[
-                              data
+                              SM(r"\$vibrational normal modes\s*$", name="start",
+                                 coverageIgnore=True, required=True),
+                              data,
+                              SM(r"\$end\s*$", name="end", coverageIgnore=True, required=True)
                           ]
                           )
 
