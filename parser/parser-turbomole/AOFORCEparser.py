@@ -14,6 +14,11 @@ logger = logging.getLogger("nomad.turbomoleParser")
 
 class AOFORCEparser(object):
 
+    mode_units = {
+        # FIXME: add other units for mode energies supported by turbomole
+        "cm**(-1)": "inversecm"
+    }
+
     def __init__(self, context, key="aoforce"):
         context[key] = self
         self.__context = context
@@ -21,6 +26,7 @@ class AOFORCEparser(object):
         self.__hessian = None
         self.__modes = None
         self.__energies = None
+        self.__energy_unit = None
         self.__activity_infrared = None
         self.__activity_raman = None
         self.__intensities = None
@@ -66,6 +72,7 @@ class AOFORCEparser(object):
             self.__context["method"].build_dftd3_vdw_matcher(),
             self.__build_hessian_matcher(),
             self.__build_normal_mode_file_matcher(),
+            self.__build_vibration_spectrum_file_matcher(),
             self.__build_normal_modes_matcher(),
             self.__build_total_energy_matcher(),
         ]
@@ -80,6 +87,20 @@ class AOFORCEparser(object):
                   r"\s+file=<([^>]+)>\s*\*{3}\s*$",
                   name="normal modes file",
                   startReAction=store_file_name
+                  )
+
+    def __build_vibration_spectrum_file_matcher(self):
+        def store_file_name(backend, groups):
+            self.__vibration_files["spectrum"] = groups[0]
+
+        sub = SM("\s*file\s*=\s*<(.+)>\s*\*{3}\s*$",
+                 name="spectrum filename",
+                 required=True,
+                 startReAction=store_file_name)
+        return SM(r"\s*\*{3}\s*vibrational\s+spectroscopic\s+data\s+written\s+"
+                  r"onto\s*\$vibrational\s+spectrum\s*$",
+                  name="spectrum filename",
+                  subMatchers=[sub]
                   )
 
     def __build_hessian_matcher(self):
@@ -173,6 +194,11 @@ class AOFORCEparser(object):
             self.__modes[:, :, :] = 0.0
             self.__energies = np.ndarray(shape=(3 * n_atoms), dtype=float)
             self.__energies[:] = 0.0
+            try:
+                self.__energy_unit = self.mode_units[groups[0]]
+            except KeyError:
+                logger.error("unknown vibrational mode energy unit found: " + groups[0])
+                self.__energy_unit = self.mode_units["cm**(-1)"]
             self.__intensities = np.ndarray(shape=(3 * n_atoms), dtype=float)
             self.__intensities[:] = 0.0
             self.__activity_infrared = np.ndarray(shape=(3 * n_atoms), dtype=bool)
@@ -257,11 +283,22 @@ class AOFORCEparser(object):
                 except IOError:
                     logger.warning("Could not find auxiliary file '%s' in directory '%s'." % (
                         self.__vibration_files["modes"], dir_name))
+            if "spectrum" in self.__vibration_files:
+                spectrum_parser = self.__build_vibrational_spectrum_file_parser()
+                dir_name = os.path.dirname(os.path.abspath(self.__context.fName))
+                file_name = os.path.normpath(os.path.join(dir_name,
+                                                          self.__vibration_files["spectrum"]))
+                try:
+                    with open(file_name) as file_in:
+                        spectrum_parser.parseFile(file_in)
+                except IOError:
+                    logger.warning("Could not find auxiliary file '%s' in directory '%s'." % (
+                        self.__vibration_files["spectrum"], dir_name))
 
             backend.addArrayValues("x_turbomole_vibrations_normal_modes", self.__modes,
                                    self.__context.index_configuration(), unit="bohr")
             backend.addArrayValues("x_turbomole_vibrations_mode_energies", self.__energies,
-                                   self.__context.index_configuration(), unit="inversecm")
+                                   self.__context.index_configuration(), unit=self.__energy_unit)
             backend.addArrayValues("x_turbomole_vibrations_intensities", self.__intensities,
                                    self.__context.index_configuration(), unit="kcal * mole ** -1")
             backend.addArrayValues("x_turbomole_vibrations_infrared_activity",
@@ -309,7 +346,7 @@ class AOFORCEparser(object):
                           ]
                           )
 
-        return SM(r"\s*NORMAL\s+MODES\s+and\s+VIBRATIONAL\s+FREQUENCIES\s+\(cm\*\*\(-1\)\)\s*$",
+        return SM(r"\s*NORMAL\s+MODES\s+and\s+VIBRATIONAL\s+FREQUENCIES\s+\((.+)\)\s*$",
                   name="vibrational spectrum",
                   startReAction=self.__prepare_vibrations__data,
                   subMatchers=[
@@ -323,7 +360,6 @@ class AOFORCEparser(object):
 
         def prepare_data(backend, gIndex, section):
             self.__prefix_width = len(str(self.__context["geo"].num_atoms()))+1
-            self.__prepare_vibrations__data(backend, tuple())
             self.__current_columns = 0
 
         def process_line(backend, groups):
@@ -340,7 +376,7 @@ class AOFORCEparser(object):
                 match = re_element.match(groups[1], pos=match.end(0))
                 self.__current_columns += 1
 
-        data = SM(r"( *[0-9]+ *[0-9]+)((?:\s+"+RE_FLOAT+")+)\s*$",
+        data = SM(r"(\s*[0-9]+\s*[0-9]+)((?:\s+"+RE_FLOAT+")+)\s*$",
                   name="displacements",
                   startReAction=process_line,
                   repeats=True)
@@ -348,10 +384,56 @@ class AOFORCEparser(object):
                           name="normal modes file root",
                           onOpen={None: prepare_data},
                           subMatchers=[
-                              SM(r"\$vibrational normal modes\s*$", name="start",
-                                 coverageIgnore=True, required=True),
+                              SM(r"\$vibrational normal modes\s*$", name="start", required=True),
                               data,
-                              SM(r"\$end\s*$", name="end", coverageIgnore=True, required=True)
+                              SM(r"\$end\s*$", name="end", required=True)
+                          ]
+                          )
+
+        return AncillaryParser(fileDescription=normal_modes,
+                               parser=self.__context.parser,
+                               cachingLevelForMetaName=dict(),
+                               superContext=self.__context
+                               )
+
+    def __build_vibrational_spectrum_file_parser(self):
+
+        def process_header(backend, groups):
+            try:
+                self.__energy_unit = self.mode_units[groups[0]]
+            except KeyError:
+                logger.error("unknown vibrational mode energy unit found: " + groups[0])
+                self.__energy_unit = self.mode_units["cm**(-1)"]
+
+        def process_line(backend, groups):
+            mode_index = int(groups[0]) - 1
+            self.__energies[mode_index] = float(groups[1])
+            self.__intensities[mode_index] = float(groups[2])
+            self.__activity_infrared[mode_index] = groups[3] == "YES"
+            self.__activity_raman[mode_index] = groups[4] == "YES"
+
+        header = SM(r"#\s+mode\s+symmetry\s+wave\s+number\s+IR\s+intensity\s+selection\s+rules\s*$",
+                    name="header",
+                    required=True
+                    )
+        header_units = SM(r"#\s+(\S+)\s+km/mol\s+IR\s+RAMAN",
+                          name="units",
+                          required=True,
+                          startReAction=process_header
+                          )
+        data = SM(r"\s*([0-9]+)\s+[a-z'\"]*\s+(" + RE_FLOAT + ")\s+("
+                  + RE_FLOAT + ")\s+(-|YES)\s+(-|YES)\s*$",
+                  name="vibrational mode",
+                  startReAction=process_line,
+                  repeats=True)
+        normal_modes = SM(r"",
+                          name="vibrational spectrum file root",
+                          subMatchers=[
+                              SM(r"\$vibrational spectrum\s*$", name="start", required=True),
+                              header,
+                              header_units,
+                              data,
+                              SM(r"\$end\s*$", name="end", required=True)
                           ]
                           )
 
