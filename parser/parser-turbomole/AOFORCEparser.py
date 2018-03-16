@@ -80,6 +80,15 @@ class AOFORCEparser(object):
         return self.__context.build_module_matcher("force", sub_matchers, "AOFORCE",
                                                    self.__context["method"].add_default_functional)
 
+    def __build_hessian_file_matcher(self):
+        def store_file_name(backend, groups):
+            self.__vibration_files["hessian"] = groups[0]
+        return SM(r"\s*\*{3}\s*projected\s+hessian\s+written\s+onto\s+\$hessian\s+\(projected\),"
+                  r"\s+file=<([^>]+)>\s*\*{3}\s*$",
+                  name="hessian file",
+                  startReAction=store_file_name
+                  )
+
     def __build_normal_mode_file_matcher(self):
         def store_file_name(backend, groups):
             self.__vibration_files["modes"] = groups[0]
@@ -138,6 +147,17 @@ class AOFORCEparser(object):
                 index += 1
 
         def write_data(backend, gIndex, section):
+            if "hessian" in self.__vibration_files:
+                hessian_parser = self.__build_hessian_file_parser()
+                dir_name = os.path.dirname(os.path.abspath(self.__context.fName))
+                file_name = os.path.normpath(os.path.join(dir_name,
+                                                          self.__vibration_files["hessian"]))
+                try:
+                    with open(file_name) as file_in:
+                        hessian_parser.parseFile(file_in)
+                except IOError:
+                    logger.warning("Could not find auxiliary file '%s' in directory '%s'." % (
+                        self.__vibration_files["modes"], dir_name))
             backend.addArrayValues("hessian_matrix", self.__hessian,
                                    self.__context.index_configuration(), unit="hartree * bohr**-2")
 
@@ -161,7 +181,8 @@ class AOFORCEparser(object):
                   name="Cartesian Hessian",
                   startReAction=prepare_data,
                   subMatchers=[
-                      block_header
+                      block_header,
+                      self.__build_hessian_file_matcher()
                   ],
                   onClose={None: write_data}
                   )
@@ -354,6 +375,49 @@ class AOFORCEparser(object):
                   ],
                   onClose={None: write_data}
                   )
+
+    def __build_hessian_file_parser(self):
+        re_element = re.compile(r"\s*("+RE_FLOAT+")")
+
+        def prepare_data(backend, gIndex, section):
+            self.__prefix_width = len(str(self.__context["geo"].num_atoms()))+1
+            self.__current_columns = 0
+
+        def process_line(backend, groups):
+            row_index = int(groups[0][0:self.__prefix_width])
+            if self.__current_row != row_index:
+                self.__current_columns = 0
+                self.__current_row = row_index
+            atom_row = (row_index - 1) // 3
+            axis_row = (row_index - 1) % 3
+            match = re_element.match(groups[1])
+            while match:
+                atom_col = self.__current_columns // 3
+                axis_col = self.__current_columns % 3
+                value = float(match.group(0))
+                self.__hessian[atom_row, atom_col, axis_row, axis_col] = value
+                match = re_element.match(groups[1], pos=match.end(0))
+                self.__current_columns += 1
+
+        data = SM(r"(\s*[0-9]+\s*[0-9]+)((?:\s+"+RE_FLOAT+")+)\s*$",
+                  name="hessian matrix",
+                  startReAction=process_line,
+                  repeats=True)
+        normal_modes = SM(r"",
+                          name="hessian matrix file root",
+                          onOpen={None: prepare_data},
+                          subMatchers=[
+                              SM(r"\$hessian \(projected\)\s*$", name="start", required=True),
+                              data,
+                              SM(r"\$end\s*$", name="end", required=True)
+                          ]
+                          )
+
+        return AncillaryParser(fileDescription=normal_modes,
+                               parser=self.__context.parser,
+                               cachingLevelForMetaName=dict(),
+                               superContext=self.__context
+                               )
 
     def __build_normal_modes_file_parser(self):
         re_element = re.compile(r"\s*("+RE_FLOAT+")")
