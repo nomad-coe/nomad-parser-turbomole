@@ -1,5 +1,5 @@
 # Copyright 2016-2018 Arvid Conrad Ihrig, Aliaksei Mazheika
-#                     Fritz-Haber-Institut of the Max-Planck Society
+#                     Fritz-Haber-Institut der Max-Planck-Gesellschaft
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
