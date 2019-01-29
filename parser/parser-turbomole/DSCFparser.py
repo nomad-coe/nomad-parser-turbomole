@@ -95,7 +95,7 @@ class DSCFparser(object):
                                   name="SCF E total",
                                   required=True
                                   )
-        xc_energy_matcher = SM(r"\s*Exc =\s*(?P<energy_XC_scf_iteration__hartree>"+RE_FLOAT+")"
+        xc_energy_matcher = SM(r"\s*Exc =\s*(?P<energy_xc_scf_iteration__hartree>"+RE_FLOAT+")"
                                r"\s+N =\s*("+RE_FLOAT+")",
                                name="SCF E xc"
                                )

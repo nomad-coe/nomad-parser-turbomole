@@ -74,7 +74,7 @@ class CCSDF12parser(object):
             self.__auxiliary_indices["config"] = backend.openSection(
                 "section_single_configuration_calculation")
             self.__auxiliary_indices["method"] = backend.openSection("section_method")
-            backend.addValue("single_configuration_to_calculation_method_ref",
+            backend.addValue("single_configuration_calculation_to_method_ref",
                              self.__auxiliary_indices["method"], self.__auxiliary_indices["config"])
             backend.addValue("single_configuration_calculation_to_system_ref",
                              self.__context.index_system(), self.__auxiliary_indices["config"])

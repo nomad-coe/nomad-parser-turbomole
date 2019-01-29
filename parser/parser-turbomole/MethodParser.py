@@ -94,9 +94,9 @@ class MethodParser(object):
             self.__method = "DFT"
             self.__backend.addValue("electronic_structure_method", "DFT", index_method)
             self.__backend.addValue("calculation_method_kind", "absolute", index_method)
-            index_xc = self.__backend.openSection("section_XC_functionals")
-            self.__backend.addValue('XC_functional_name', "HF_X", index_xc)
-            self.__backend.closeSection("section_XC_functionals", index_xc)
+            index_xc = self.__backend.openSection("section_xc_functionals")
+            self.__backend.addValue('xc_functional_name', "HF_X", index_xc)
+            self.__backend.closeSection("section_xc_functionals", index_xc)
 
     def build_uhf_matcher(self):
 
@@ -138,9 +138,9 @@ class MethodParser(object):
             backend.addValue("electronic_structure_method", "DFT", index_method)
             backend.addValue("calculation_method_kind", "absolute", index_method)
             for component in self.__functional:
-                index_xc = backend.openSection("section_XC_functionals")
-                backend.addValue('XC_functional_name', component, index_xc)
-                backend.closeSection("section_XC_functionals", index_xc)
+                index_xc = backend.openSection("section_xc_functionals")
+                backend.addValue('xc_functional_name', component, index_xc)
+                backend.closeSection("section_xc_functionals", index_xc)
 
         return SM(r"\s*density functional\s*$",
                   name="DFT functional",
@@ -206,12 +206,12 @@ class MethodParser(object):
     def build_dftd3_vdw_matcher(self):
 
         def store_energy(backend, groups):
-            backend.addRealValue("energy_van_der_Waals", float(groups[0]),
+            backend.addRealValue("energy_van_der_waals", float(groups[0]),
                                  self.__context.index_configuration(), unit="hartree")
 
         def store_version(backend, groups):
             backend.addValue("x_turbomole_dft_d3_version", groups[0], self.__context.index_method())
-            backend.addValue("van_der_Waals_method", "DFT-D3", self.__context.index_method())
+            backend.addValue("van_der_waals_method", "DFT-D3", self.__context.index_method())
 
         energy_matcher = SM(r"\s*Edisp\s+/kcal,\s*au\s*:\s*"+RE_FLOAT+"\s+("+RE_FLOAT+")\s*$",
                             name="vdW energy",

@@ -101,19 +101,19 @@ class ESCFparser(object):
                   )
 
     def __build_gw_qp_states_matcher_no_spin(self):
-        state = SM(r"\s*[0-9]+\s+(?P<x_turbomole_eigenvalue_ks_GroundState__eV>[-+0-9.eEdD]+)\s+"
-                   r"(?P<x_turbomole_eigenvalue_quasiParticle_energy__eV>[-+0-9.eEdD]+)\s+"
-                   r"(?P<x_turbomole_eigenvalue_ExchangeCorrelation_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
-                   r"(?P<x_turbomole_eigenvalue_ExactExchange_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
-                   r"(?P<x_turbomole_eigenvalue_correlation_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
-                   r"(?P<x_turbomole_eigenvalue_ks_ExchangeCorrelation__eV>[-+0-9.eEdD]+)\s+"
-                   r"(?P<x_turbomole_Z_factor>[-+0-9.eEdD]+)\s+"
-                   r"(?P<x_turbomole_ExchangeCorrelation_perturbativeGW_derivation>[-+0-9.eEdD]+)",
+        state = SM(r"\s*[0-9]+\s+(?P<x_turbomole_eigenvalue_ks_groundstate__eV>[-+0-9.eEdD]+)\s+"
+                   r"(?P<x_turbomole_eigenvalue_quasiparticle_energy__eV>[-+0-9.eEdD]+)\s+"
+                   r"(?P<x_turbomole_eigenvalue_exchangecorrelation_perturbativegw__eV>[-+0-9.eEdD]+)\s+"
+                   r"(?P<x_turbomole_eigenvalue_exactexchange_perturbativegw__eV>[-+0-9.eEdD]+)\s+"
+                   r"(?P<x_turbomole_eigenvalue_correlation_perturbativegw__eV>[-+0-9.eEdD]+)\s+"
+                   r"(?P<x_turbomole_eigenvalue_ks_exchangecorrelation__eV>[-+0-9.eEdD]+)\s+"
+                   r"(?P<x_turbomole_z_factor>[-+0-9.eEdD]+)\s+"
+                   r"(?P<x_turbomole_exchangecorrelation_perturbativegw_derivation>[-+0-9.eEdD]+)",
                    name="GW QP state",
                    repeats=True)
         return SM(r"\s*orb\s+eps\s+QP-eps\s+Sigma\s+Sigma_x\s+Sigma_c\s+Vxc\s+Z\s+dS\/de",
                   name="GW QP statelist",
-                  sections=["x_turbomole_section_eigenvalues_GW"],
+                  sections=["x_turbomole_section_eigenvalues_gw"],
                   subMatchers=[
                       SM(r"\s*in\s*eV", required=True, name="GW output unit"),
                       SM(r"\s*----*", name="<format>", coverageIgnore=True),

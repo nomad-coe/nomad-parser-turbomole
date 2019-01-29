@@ -135,9 +135,11 @@ class TurbomoleParserContext(object):
 
         def close_section_method(backend, gIndex, section):
             self["geo"].write_basis_set_mapping(self.index_configuration(), gIndex)
-            self.__invocations[-1].kinetic_energy = self["method"].get_energy_kinetic()
-            self.__invocations[-1].potential_energy = self["method"].get_energy_potential()
-            backend.addValue("single_configuration_to_calculation_method_ref", gIndex,
+            if self["method"].get_energy_kinetic() is not None:
+                backend.addRealValue('kinetic_energy', float(self["method"].get_energy_kinetic()), unit="hartree")
+            if self["method"].get_energy_potential() is not None:
+                backend.addRealValue('potential_energy', float(self["method"].get_energy_potential()), unit="hartree")
+            backend.addValue("single_configuration_calculation_to_method_ref", gIndex,
                              self.index_configuration())
 
         def close_section_system(backend, gIndex, section):
@@ -279,31 +281,12 @@ class TurbomoleParserContext(object):
 
         if self.__sampling_mode_section is not None:
             index = backend.openSection("section_frame_sequence")
-            backend.addValue("frame_sequence_to_sampling_ref", self.__sampling_mode_section, index)
+            backend.addValue("frame_sequence_to_sampling_method_ref", self.__sampling_mode_section, index)
             if self.__geometry_converged:
                 backend.addValue("geometry_optimization_converged", self.__geometry_converged,
                                  index)
             frames_all = np.asarray([x.index_config for x in self.__invocations], dtype=int)
-            frames_kinetic = np.asarray([x.index_config for x in self.__invocations
-                                         if x.kinetic_energy], dtype=int)
-            frames_potential = np.asarray([x.index_config for x in self.__invocations
-                                         if x.potential_energy], dtype=int)
-            energies_kinetic = np.asarray([x.kinetic_energy for x in self.__invocations
-                                if x.kinetic_energy], dtype=float)
-            energies_potential = np.asarray([x.potential_energy for x in self.__invocations
-                                             if x.potential_energy], dtype=float)
-            backend.addValue("number_of_frames_in_sequence", len(self.__invocations), index)
-            backend.addValue("number_of_kinetic_energies_in_sequence", len(energies_kinetic), index)
-            backend.addValue("number_of_potential_energies_in_sequence",
-                             len(energies_potential), index)
-            backend.addArrayValues("frame_sequence_local_frames_ref", frames_all, index)
-            backend.addArrayValues("frame_sequence_kinetic_energy_frames", frames_kinetic, index)
-            backend.addArrayValues("frame_sequence_potential_energy_frames", frames_potential,
-                                   index)
-            backend.addArrayValues("frame_sequence_kinetic_energy", energies_kinetic, index,
-                                   unit="hartree")
-            backend.addArrayValues("frame_sequence_potential_energy", energies_potential, index,
-                                   unit="hartree")
+            backend.addArrayValues("frame_sequence_to_frames_ref", frames_all, index)
             backend.closeSection("section_frame_sequence", index)
 
 

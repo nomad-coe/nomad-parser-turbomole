@@ -135,15 +135,16 @@ class SystemParser(object):
         index = self.__backend.openSection("section_method_basis_set")
         self.__backend.setSectionInfo("section_method_basis_set", index, references)
         self.__backend.addValue("number_of_basis_sets_atom_centered", len(self.__atom_kinds), index)
-        refs = np.ndarray(shape=(len(self.__atom_kinds),2), dtype=int)
-        refs[:, :] = -1
+        kindsRefs = np.full(shape=len(self.__atom_kinds), fill_value=-1, dtype=int)
+        basisRefs = np.full(shape=len(self.__atom_kinds), fill_value=-1, dtype=int)
         for i, elem in enumerate(sorted(self.__atom_kinds)):
             kind = self.__atom_kinds[elem]
-            refs[i, 0] = kind.index
-            refs[i, 1] = basis_sets[kind.elem].index
+            kindsRefs[i] = kind.index
+            basisRefs[i] = basis_sets[kind.elem].index
         self.__backend.addValue("method_basis_set_kind",
                                 "density" if is_auxiliary else "wavefunction", index)
-        self.__backend.addArrayValues("mapping_section_method_basis_set_atom_centered", refs, index)
+        self.__backend.addArrayValues("method_basis_set_to_atom_kind_ref", kindsRefs, index)
+        self.__backend.addArrayValues("method_basis_set_to_atom_centered_ref", basisRefs, index)
         self.__backend.closeSection("section_method_basis_set", index)
 
     def build_qm_geometry_matcher(self):

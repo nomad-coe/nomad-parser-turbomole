@@ -99,7 +99,7 @@ class RIDFTparser(object):
                           required=True
                           )
 
-        xc_energy = SM(r"\s*Exc =\s*(?P<energy_XC_scf_iteration__hartree>"+RE_FLOAT+")"
+        xc_energy = SM(r"\s*Exc =\s*(?P<energy_xc_scf_iteration__hartree>"+RE_FLOAT+")"
                        r"\s+Coul =\s*(?P<energy_electrostatic_scf_iteration__hartree>"+RE_FLOAT+")",
                        name="SCF E xc+coul",
                        )

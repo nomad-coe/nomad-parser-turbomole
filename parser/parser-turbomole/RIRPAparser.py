@@ -96,16 +96,16 @@ class RIRPAparser(object):
             index_config = backend.openSection("section_single_configuration_calculation")
             index_method = backend.openSection("section_method")
             references = {"section_method": index_method}
-            backend.addValue("single_configuration_to_calculation_method_ref",
+            backend.addValue("single_configuration_calculation_to_method_ref",
                              index_method, index_config)
             backend.addValue("single_configuration_calculation_to_system_ref",
                              self.__context.index_system(), index_config)
             backend.addValue("electronic_structure_method", "DFT", index_method)
             backend.addValue("calculation_method_kind", "absolute", index_method)
-            index_xc = backend.openSection("section_XC_functionals")
-            backend.setSectionInfo("section_XC_functionals", index_xc, references)
-            backend.addValue('XC_functional_name', "HF_X", index_xc)
-            backend.closeSection("section_XC_functionals", index_xc)
+            index_xc = backend.openSection("section_xc_functionals")
+            backend.setSectionInfo("section_xc_functionals", index_xc, references)
+            backend.addValue('xc_functional_name', "HF_X", index_xc)
+            backend.closeSection("section_xc_functionals", index_xc)
             backend.addRealValue("energy_total", e_hf, index_method, unit="hartree")
 
             index_link = backend.openSection("section_calculation_to_calculation_refs")

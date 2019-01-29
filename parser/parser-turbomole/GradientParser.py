@@ -77,8 +77,11 @@ class GradientParser(object):
             forces[:, :] = 0.0
             for i, atom in enumerate(sorted(self.__forces)):
                 forces[i, 0:3] = atom.x, atom.y, atom.z
-            self.__backend.addArrayValues("atom_forces_raw", forces, gIndex=index_config,
+            fId = self.__backend.openSection('section_atom_forces')
+            self.__backend.addValue("atom_forces_constraints", 'raw')
+            self.__backend.addArrayValues("atom_forces", forces, gIndex=index_config,
                                           unit="forceAu")
+            self.__backend.closeSection('section_atom_forces', fId)
 
     def build_gradient_matcher(self):
 
