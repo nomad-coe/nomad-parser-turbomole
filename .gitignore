@@ -14,6 +14,7 @@ secret_example
 *.pyc
 *.bk
 *.swp
+*.egg-info
 .DS_Store
 
 # logging files
