@@ -101,14 +101,14 @@ class ESCFparser(object):
                   )
 
     def __build_gw_qp_states_matcher_no_spin(self):
-        state = SM(r"\s*[0-9]+\s+(?P<x_turbomole_eigenvalue_ks_GroundState__eV>[-+0-9.eEdD]+)\s+"
-                   r"(?P<x_turbomole_eigenvalue_quasiParticle_energy__eV>[-+0-9.eEdD]+)\s+"
-                   r"(?P<x_turbomole_eigenvalue_ExchangeCorrelation_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
-                   r"(?P<x_turbomole_eigenvalue_ExactExchange_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
-                   r"(?P<x_turbomole_eigenvalue_correlation_perturbativeGW__eV>[-+0-9.eEdD]+)\s+"
-                   r"(?P<x_turbomole_eigenvalue_ks_ExchangeCorrelation__eV>[-+0-9.eEdD]+)\s+"
-                   r"(?P<x_turbomole_Z_factor>[-+0-9.eEdD]+)\s+"
-                   r"(?P<x_turbomole_ExchangeCorrelation_perturbativeGW_derivation>[-+0-9.eEdD]+)",
+        state = SM(r"\s*[0-9]+\s+(?P<x_turbomole_eigenvalue_ks_GroundState__eV>[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+"
+                   r"(?P<x_turbomole_eigenvalue_quasiParticle_energy__eV>[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+"
+                   r"(?P<x_turbomole_eigenvalue_ExchangeCorrelation_perturbativeGW__eV>[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+"
+                   r"(?P<x_turbomole_eigenvalue_ExactExchange_perturbativeGW__eV>[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+"
+                   r"(?P<x_turbomole_eigenvalue_correlation_perturbativeGW__eV>[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+"
+                   r"(?P<x_turbomole_eigenvalue_ks_ExchangeCorrelation__eV>[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+"
+                   r"(?P<x_turbomole_Z_factor>[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+"
+                   r"(?P<x_turbomole_ExchangeCorrelation_perturbativeGW_derivation>[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)",
                    name="GW QP state",
                    repeats=True)
         return SM(r"\s*orb\s+eps\s+QP-eps\s+Sigma\s+Sigma_x\s+Sigma_c\s+Vxc\s+Z\s+dS\/de",
