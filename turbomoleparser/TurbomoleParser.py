@@ -413,13 +413,14 @@ class TurbomoleParser():
        logging.getLogger('nomadcore').setLevel(logging.WARNING)
        backend = self.backend_factory(metaInfoEnv)
        parserInfo = {'name': 'turbomole-parser', 'version': '1.0'}
+       context = TurbomoleParserContext()
        with patch.object(sys, 'argv', ['<exe>', '--uri', 'nmd://uri', mainfile]):
            mainFunction(
-               build_root_parser(TurbomoleParserContext()),
+               build_root_parser(context),
                metaInfoEnv,
                parserInfo,
                cachingLevelForMetaName=dict(),
-               superContext=TurbomoleParserContext(),
+               superContext=context,
                superBackend=backend)
 
        return backend
