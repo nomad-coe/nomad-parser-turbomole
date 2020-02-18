@@ -368,7 +368,7 @@ def build_root_parser(context):
               subFlags=SM.SubFlags.Unordered,
               fixedStartValues={
                   'program_name': 'turbomole',
-                  'program_basis_set_type': 'GTOs'
+                  'program_basis_set_type': 'gaussians'
               },
               subMatchers=[
                   mpi_slaves,
