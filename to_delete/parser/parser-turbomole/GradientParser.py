@@ -78,7 +78,7 @@ class GradientParser(object):
             for i, atom in enumerate(sorted(self.__forces)):
                 forces[i, 0:3] = atom.x, atom.y, atom.z
             self.__backend.addArrayValues("atom_forces_raw", forces, gIndex=index_config,
-                                          unit="forceAu")
+                                          unit="hartree / bohr")
 
     def build_gradient_matcher(self):
 
