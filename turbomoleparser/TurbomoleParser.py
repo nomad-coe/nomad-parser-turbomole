@@ -398,10 +398,6 @@ def build_occupation_smearing_matcher():
                ])
 
 
-import nomad_meta_info
-metaInfoPath = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(nomad_meta_info.__file__)), "turbomole.nomadmetainfo.json"))
-metaInfoEnv, warnings = loadJsonFile(filePath = metaInfoPath, dependencyLoader = None, extraArgsHandling = InfoKindEl.ADD_EXTRA_ARGS, uri = None)
-
 class TurbomoleParser():
    """ A proper class envolop for running this parser from within python. """
    def __init__(self, backend, **kwargs):
@@ -411,13 +407,13 @@ class TurbomoleParser():
        from unittest.mock import patch
        logging.info('turbomole parser started')
        logging.getLogger('nomadcore').setLevel(logging.WARNING)
-       backend = self.backend_factory(metaInfoEnv)
+       backend = self.backend_factory("turbomole.nomadmetainfo.json")
        parserInfo = {'name': 'turbomole-parser', 'version': '1.0'}
        context = TurbomoleParserContext()
        with patch.object(sys, 'argv', ['<exe>', '--uri', 'nmd://uri', mainfile]):
            mainFunction(
                build_root_parser(context),
-               metaInfoEnv,
+               None,
                parserInfo,
                cachingLevelForMetaName=dict(),
                superContext=context,
@@ -425,27 +421,3 @@ class TurbomoleParser():
 
        return backend
 
-
-def main():
-    """Main function.
-
-    Set up everything for the parsing of the turbomole main file and run the parsing.
-    """
-    # get main file description
-    context = TurbomoleParserContext()
-    # loading metadata from nomad-meta-info/meta_info/nomad_meta_info/turbomole.nomadmetainfo.json
-    path = "../../../../nomad-meta-info/meta_info/nomad_meta_info/turbomole.nomadmetainfo.json"
-    metaInfoPath = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), path))
-    metaInfoEnv = get_metaInfo(metaInfoPath)
-    # set parser info
-    parserInfo = {'name': 'turbomole-parser', 'version': '1.0'}
-    # start parsing
-    mainFunction(mainFileDescription=build_root_parser(context),
-                 metaInfoEnv=metaInfoEnv,
-                 parserInfo=parserInfo,
-                 cachingLevelForMetaName=dict(),
-                 superContext=context)
-
-
-if __name__ == "__main__":
-    main()
