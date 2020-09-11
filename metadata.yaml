@@ -1,0 +1,7 @@
+codeLabel: TURBOMOLE
+codeLabelStyle: All in capitals
+codeUrl: https://www.turbomole.org/
+parserDirName: dependencies/parsers/turbomole/
+parserGitUrl: https://gitlab.mpcdf.mpg.de/nomad-lab/parser-turbomole
+parserSpecific: ''
+tableOfFiles: ''
