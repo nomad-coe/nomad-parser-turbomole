@@ -574,7 +574,8 @@ class OutParser(TextParser):
                     Quantity(
                         'qp_states',
                         r'orb\s*eps\s*QP\-eps\s*Sigma\s*Sigma_x\s*Sigma_c\s*Vxc\s*Z\s*dS/de'
-                        r'([\s\S]+?)\n\s*\n', str_operation=str_to_qp_states, convert=False)]))]
+                        r'([\s\S]+?)\n\s*\n',
+                        repeats=True, str_operation=str_to_qp_states, convert=False)]))]
 
         freeh_quantities = module_quantities + [
             Quantity(
@@ -690,7 +691,7 @@ class OutParser(TextParser):
         # necessary to wrap it around a module so we keep the order
         self._quantities = [Quantity(
             'module_run',
-            r'(.+?TURBOMOLE V[\s\S]+?all done\s*\*\*\*\*\s*[\d\.\-: ]+)',
+            r'(.+?TURBOMOLE (?:V|rev)[\s\S]+?all done\s*\*\*\*\*\s*[\d\.\-: ]+)',
             repeats=True, sub_parser=TextParser(quantities=run_quantities))]
 
 
@@ -1005,12 +1006,12 @@ class TurbomoleParser(FairdiParser):
             sec_scc.number_of_scf_iterations = n_scf
 
         # gw
-        qp_states = self.module.get('gw', {}).get('qp_states')
-        if qp_states is not None:
+        if self.module.get('gw') is not None:
             sec_eigenvalues = sec_scc.m_create(Eigenvalues)
-            sec_gw_eigenvalues = sec_eigenvalues.m_create(x_turbomole_section_eigenvalues_GW)
-            for key, val in qp_states.items():
-                setattr(sec_gw_eigenvalues, 'x_turbomole_%s' % key, val)
+            for qp_states in self.module.gw.get('qp_states', []):
+                sec_gw_eigenvalues = sec_eigenvalues.m_create(x_turbomole_section_eigenvalues_GW)
+                for key, val in qp_states.items():
+                    setattr(sec_gw_eigenvalues, 'x_turbomole_%s' % key, val)
 
         # vdW
         energy_vdW = self.module.get('dft_d3', {}).get('energy_van_der_Waals')
