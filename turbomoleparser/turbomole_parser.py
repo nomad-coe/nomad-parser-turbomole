@@ -258,9 +258,9 @@ class OutParser(TextParser):
         def str_to_scf_energies(val_in):
             val = [float(v) for v in val_in.strip().replace('D', 'E').split()]
             return dict(
-                energy_total_scf_iteration=val[0] * ureg.hartree,
-                x_turbomole_energy_1electron_scf_iteration=val[1] * ureg.hartree,
-                x_turbomole_energy_2electron_scf_iteration=val[2] * ureg.hartree)
+                energy_total_scf_iteration=val[1] * ureg.hartree,
+                x_turbomole_energy_1electron_scf_iteration=val[2] * ureg.hartree,
+                x_turbomole_energy_2electron_scf_iteration=val[3] * ureg.hartree)
 
         def str_to_norm(val_in):
             name, val = val_in.split('=')
@@ -339,7 +339,7 @@ class OutParser(TextParser):
                 str_operation=lambda x: 1.0 / (1.0 + float(x)), convert=False),
             Quantity(
                 'energies',
-                r'ATION\s*ENERGY.+\s*(.+)',
+                r'ATION\s*ENERGY.+\s*(\d*\s*.+)',
                 str_operation=str_to_scf_energies, convert=False),
             Quantity(
                 'energy_XC',
@@ -467,7 +467,7 @@ class OutParser(TextParser):
                     Quantity('version', r'DFTD3 V([\d\.]+ Rev \d+)', flatten=False),
                     Quantity(
                         'energy_van_der_Waals',
-                        rf'Edisp /kcal,au:\s*\S\s*({re_float})', dtype=float, unit=ureg.hartree)])),
+                        rf'Edisp /kcal,au:\s*\S+\s*({re_float})', dtype=float, unit=ureg.hartree)])),
             Quantity(
                 'uhf',
                 r'UHF mod.+? switched (on) !',
