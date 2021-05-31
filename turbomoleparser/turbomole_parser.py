@@ -28,8 +28,8 @@ from nomad.parsing import FairdiParser
 from nomad.parsing.file_parser import TextParser, Quantity, FileParser
 from nomad.datamodel.metainfo.common_dft import Run, Method, MethodAtomKind, MethodBasisSet,\
     BasisSetAtomCentered, BasisSet, System, SingleConfigurationCalculation, XCFunctionals,\
-    SystemToSystemRefs, CalculationToCalculationRefs, ScfIteration, Eigenvalues,\
-    SamplingMethod, EnergyVanDerWaals
+    SystemToSystemRefs, CalculationToCalculationRefs, ScfIteration, BandEnergies,\
+    BandEnergiesValues, SamplingMethod, EnergyVanDerWaals
 from turbomoleparser.metainfo.turbomole import x_turbomole_section_eigenvalues_GW
 from turbomoleparser.metainfo import m_env
 
@@ -939,14 +939,22 @@ class TurbomoleParser(FairdiParser):
                     eigenvalues.append(np.hstack(self.eigenvalues_parser.get('eigenvalues', [])))
                     occupation.append(np.hstack(self.eigenvalues_parser.get('occupation', [])))
                     irrep.append(np.hstack(self.eigenvalues_parser.get('irrep', [])))
-                    sec_eigenvalues = sec_scc.m_create(Eigenvalues)
-                    sec_eigenvalues.eigenvalues_values = np.reshape(np.array(
+                    sec_eigenvalues = sec_scc.m_create(BandEnergies)
+                    values = np.reshape(np.array(
                         eigenvalues, dtype=float), (len(eigenvalue_files), 1, len(eigenvalues[0]))) * ureg.hartree
-                    sec_eigenvalues.eigenvalues_occupation = np.reshape(np.array(
+                    occupations = np.reshape(np.array(
                         occupation, dtype=float), (len(eigenvalue_files), 1, len(occupation[0])))
-                    sec_eigenvalues.x_turbomole_eigenvalues_irreducible_representation = np.reshape(np.array(
+                    irrep = np.reshape(np.array(
                         irrep, dtype=np.dtype('U')), (len(eigenvalue_files), 1, len(irrep[0])))
-                    sec_eigenvalues.eigenvalues_kpoints = [np.zeros(3)]
+                    for spin in range(len(values)):
+                        for kpt in range(len(values[spin])):
+                            sec_eigenvalues_values = sec_eigenvalues.m_create(BandEnergiesValues, BandEnergies.band_energies)
+                            sec_eigenvalues_values.band_energies_spin = spin
+                            sec_eigenvalues_values.band_energies_kpoints_index = kpt
+                            sec_eigenvalues_values.band_energies_values = values[spin][kpt]
+                            sec_eigenvalues_values.band_energies_occupations = occupations[spin][kpt]
+                            sec_eigenvalues_values.x_turbomole_eigenvalues_irreducible_representation = irrep[spin][kpt]
+                    sec_eigenvalues.band_energies_kpoints = [np.zeros(3)]
             except Exception:
                 self.logger.warn('Cannot read eigenvalues.')
 
@@ -1007,7 +1015,7 @@ class TurbomoleParser(FairdiParser):
 
         # gw
         if self.module.get('gw') is not None:
-            sec_eigenvalues = sec_scc.m_create(Eigenvalues)
+            sec_eigenvalues = sec_scc.m_create(BandEnergies)
             for qp_states in self.module.gw.get('qp_states', []):
                 sec_gw_eigenvalues = sec_eigenvalues.m_create(x_turbomole_section_eigenvalues_GW)
                 for key, val in qp_states.items():

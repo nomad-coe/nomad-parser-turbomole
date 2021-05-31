@@ -526,17 +526,22 @@ class section_scf_iteration(public.section_scf_iteration):
         a_legacy=LegacyDefinition(name='x_turbomole_norm_fock_scf_iteration'))
 
 
-class section_eigenvalues(public.section_eigenvalues):
+class BandEnergiesValues(public.BandEnergiesValues):
 
     m_def = Section(validate=False, extends_base_section=True, a_legacy=LegacyDefinition(name='section_eigenvalues'))
 
     x_turbomole_eigenvalues_irreducible_representation = Quantity(
         type=np.dtype('U'),
-        shape=['number_of_spin_channels', 'number_of_eigenvalues_kpoints', 'number_of_eigenvalues'],
+        shape=['n_bands'],
         description='''
         Irreducible representation the eigenstates belong to.
         ''',
         a_legacy=LegacyDefinition(name='x_turbomole_eigenvalues_irreducible_representation'))
+
+
+class BandEnergies(public.BandEnergies):
+
+    m_def = Section(validate=False, extends_base_section=True, a_legacy=LegacyDefinition(name='section_eigenvalues'))
 
     x_turbomole_section_eigenvalues_GW = SubSection(
         sub_section=SectionProxy('x_turbomole_section_eigenvalues_GW'),

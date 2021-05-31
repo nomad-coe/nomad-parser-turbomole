@@ -122,7 +122,7 @@ def test_escf(parser):
     assert sec_method.x_turbomole_gw_approximation == 'G0W0'
 
     sec_scc = archive.section_run[0].section_single_configuration_calculation[0]
-    sec_gw_eigs = sec_scc.section_eigenvalues[0].x_turbomole_section_eigenvalues_GW[0]
+    sec_gw_eigs = sec_scc.eigenvalues[0].x_turbomole_section_eigenvalues_GW[0]
     assert sec_gw_eigs.x_turbomole_eigenvalue_ks_GroundState[9].magnitude == approx(-3.59608546e-18)
     assert sec_gw_eigs.x_turbomole_eigenvalue_ExactExchange_perturbativeGW[1].magnitude == approx(-1.55874163e-17)
     assert sec_gw_eigs.x_turbomole_Z_factor[19] == 0.786
