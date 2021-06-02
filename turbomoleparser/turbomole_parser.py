@@ -949,12 +949,12 @@ class TurbomoleParser(FairdiParser):
                     for spin in range(len(values)):
                         for kpt in range(len(values[spin])):
                             sec_eigenvalues_values = sec_eigenvalues.m_create(BandEnergiesValues, BandEnergies.band_energies)
-                            sec_eigenvalues_values.band_energies_spin = spin
-                            sec_eigenvalues_values.band_energies_kpoints_index = kpt
-                            sec_eigenvalues_values.band_energies_values = values[spin][kpt]
-                            sec_eigenvalues_values.band_energies_occupations = occupations[spin][kpt]
+                            sec_eigenvalues_values.spin = spin
+                            sec_eigenvalues_values.kpoints_index = kpt
+                            sec_eigenvalues_values.value = values[spin][kpt]
+                            sec_eigenvalues_values.occupations = occupations[spin][kpt]
                             sec_eigenvalues_values.x_turbomole_eigenvalues_irreducible_representation = irrep[spin][kpt]
-                    sec_eigenvalues.band_energies_kpoints = [np.zeros(3)]
+                    sec_eigenvalues.kpoints = [np.zeros(3)]
             except Exception:
                 self.logger.warn('Cannot read eigenvalues.')
 
