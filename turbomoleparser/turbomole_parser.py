@@ -29,7 +29,7 @@ from nomad.parsing.file_parser import TextParser, Quantity, FileParser
 from nomad.datamodel.metainfo.common_dft import Run, Method, MethodAtomKind, MethodBasisSet,\
     BasisSetAtomCentered, BasisSet, System, SingleConfigurationCalculation, XCFunctionals,\
     SystemToSystemRefs, CalculationToCalculationRefs, ScfIteration, BandEnergies,\
-    BandEnergiesValues, SamplingMethod, EnergyVanDerWaals
+    BandEnergiesValues, SamplingMethod, Energy, Forces
 from turbomoleparser.metainfo.turbomole import x_turbomole_section_eigenvalues_GW
 from turbomoleparser.metainfo import m_env
 
@@ -732,7 +732,7 @@ class TurbomoleParser(FairdiParser):
             'CC2': 'CCSD', 'CCSD': 'CCSD', 'CCSD(T)': 'CCSD(T)'}
 
         self.metainfo_map = {
-            'total energy': 'energy_total', 'kinetic energy': 'electronic_kinetic_energy',
+            'total energy': 'energy_total', 'kinetic energy': 'energy_kinetic_electronic',
             'potential energy': 'x_turbomole_potential_energy_final',
             'virial theorem': 'x_turbomole_virial_theorem', 'wavefunction norm': 'x_turbomole_wave_func_norm',
             'Final CCSD(T) energy': 'energy_total', 'CCSD correlation energy': 'energy_current',
@@ -831,13 +831,18 @@ class TurbomoleParser(FairdiParser):
             key = self.metainfo_map.get(key, None)
             if key is None:
                 continue
-            setattr(sec_scc, key, val)
+            if key.startswith('energy_'):
+                sec_scc.m_add_sub_section(getattr(
+                    SingleConfigurationCalculation, key), Energy(value=val))
+            else:
+                setattr(sec_scc, key, val)
 
         for key in ['zero_point', 'current', 'total']:
             key = 'energy_%s' % key
             val = self.module.get(key)
             if val is not None:
-                setattr(sec_scc, key, val.to('joule').magnitude)
+                sec_scc.m_add_sub_section(getattr(
+                    SingleConfigurationCalculation, key), Energy(value=val))
 
         # module-specific energies (will create additional scc, method)
         for name, energies in self.module.items():
@@ -848,7 +853,11 @@ class TurbomoleParser(FairdiParser):
                 key = self.metainfo_map.get(key, None)
                 if key is None:
                     continue
-                setattr(sec_scc_module, key, val)
+                if key.startswith('energy_'):
+                    sec_scc_module.m_add_sub_section(getattr(
+                        SingleConfigurationCalculation, key), Energy(value=val))
+                else:
+                    setattr(sec_scc_module, key, val)
             sec_method_module = sec_run.m_create(Method)
             sec_method_module.electronic_structure_method = name.lstrip('energies_')
             sec_scc_module.single_configuration_to_calculation_method_ref = sec_method_module
@@ -860,7 +869,8 @@ class TurbomoleParser(FairdiParser):
         # forces
         energy_gradient = self.module.get('energy_gradient')
         if energy_gradient is not None:
-            sec_scc.atom_forces_raw = energy_gradient
+            sec_scc.m_add_sub_section(
+                SingleConfigurationCalculation.forces_total, Forces(value_raw=energy_gradient))
 
         # thermodynamics
         thermodynamics = self.module.get('thermodynamics')
@@ -877,7 +887,11 @@ class TurbomoleParser(FairdiParser):
                 if sec_scc_thermo is not None:
                     for key, val in thermo.items():
                         key = self.metainfo_map.get(key, key)
-                        setattr(sec_scc_thermo, key, val)
+                        if key.startswith('energy_'):
+                            sec_scc_thermo.m_add_sub_section(getattr(
+                                SingleConfigurationCalculation, key), Energy(value=val))
+                        else:
+                            setattr(sec_scc_thermo, key, val)
 
         # hessian
         if self.module.get('hessian') is not None:
@@ -1024,9 +1038,9 @@ class TurbomoleParser(FairdiParser):
         # vdW
         energy_vdW = self.module.get('dft_d3', {}).get('energy_van_der_Waals')
         if energy_vdW is not None:
-            sec_vdW = sec_scc.m_create(EnergyVanDerWaals)
-            sec_vdW.energy_van_der_Waals_kind = 'DFTD3'
-            sec_vdW.energy_van_der_Waals = energy_vdW
+            sec_vdW = sec_scc.m_create(Energy, SingleConfigurationCalculation.energy_van_der_Waals)
+            sec_vdW.kind = 'DFTD3'
+            sec_vdW.value = energy_vdW
 
         return sec_scc
 

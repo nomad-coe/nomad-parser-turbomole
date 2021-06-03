@@ -50,9 +50,9 @@ def test_aoforce(parser):
     assert sec_method.x_turbomole_controlIn_scf_conv == 8
 
     sec_scc = archive.section_run[0].section_single_configuration_calculation[0]
-    assert sec_scc.energy_total.magnitude == approx(-3.58404386e-15)
-    assert sec_scc.energy_zero_point.magnitude == approx(1.02171533e-18)
-    assert sec_scc.energy_current.magnitude == approx(-3.58302215e-15)
+    assert sec_scc.energy_total.value.magnitude == approx(-3.58404386e-15)
+    assert sec_scc.energy_zero_point.value.magnitude == approx(1.02171533e-18)
+    assert sec_scc.energy_current.value.magnitude == approx(-3.58302215e-15)
     assert np.shape(sec_scc.hessian_matrix) == (31, 31, 3, 3)
     assert sec_scc.hessian_matrix[3][2][2][0] == approx(-38.1728237)
     assert np.shape(sec_scc.x_turbomole_vibrations_normal_modes) == (93, 31, 3)
@@ -74,10 +74,10 @@ def test_ccsdf12(parser):
 
     sec_sccs = archive.section_run[0].section_single_configuration_calculation
     assert len(sec_sccs) == 3
-    assert sec_sccs[0].energy_total.magnitude == approx(-2.99865659e-15)
-    assert sec_sccs[1].energy_total.magnitude == approx(-2.99841134e-15)
-    assert sec_sccs[2].energy_total.magnitude == approx(-2.99844594e-15)
-    assert sec_sccs[1].energy_current.magnitude == approx(-5.78479974e-18)
+    assert sec_sccs[0].energy_total.value.magnitude == approx(-2.99865659e-15)
+    assert sec_sccs[1].energy_total.value.magnitude == approx(-2.99841134e-15)
+    assert sec_sccs[2].energy_total.value.magnitude == approx(-2.99844594e-15)
+    assert sec_sccs[1].energy_current.value.magnitude == approx(-5.78479974e-18)
     sec_scfs = sec_sccs[0].section_scf_iteration
     assert len(sec_scfs) == 13
     assert sec_scfs[8].energy_total_scf_iteration.magnitude == approx(-2.99844594e-15)
@@ -99,12 +99,12 @@ def test_grad_statpt_dscf(parser):
     assert sec_systems[1].atom_positions[5][1].magnitude == approx(1.22377337e-10,)
 
     sec_sccs = archive.section_run[0].section_single_configuration_calculation
-    assert sec_sccs[0].atom_forces_raw[6][0].magnitude == approx(-4.2984543e-12)
+    assert sec_sccs[0].forces_total.value_raw[6][0].magnitude == approx(-4.2984543e-12)
     sec_scfs = sec_sccs[2].section_scf_iteration
     assert len(sec_scfs) == 3
     assert sec_scfs[1].energy_total_scf_iteration.magnitude == approx(-8.35592725e-16)
     assert sec_scfs[0].x_turbomole_delta_eigenvalues.magnitude == approx(2.92683961e-22)
-    assert sec_sccs[2].electronic_kinetic_energy.magnitude == approx(8.27834082e-16)
+    assert sec_sccs[2].energy_kinetic_electronic.value.magnitude == approx(8.27834082e-16)
 
     sec_sampling = archive.section_run[0].section_sampling_method[0]
     assert sec_sampling.x_turbomole_geometry_optimization_trustregion_min.magnitude == approx(5.29177211e-14)
@@ -134,8 +134,8 @@ def test_freeh(parser):
 
     sec_sccs = archive.section_run[0].section_single_configuration_calculation
     assert len(sec_sccs) == 2
-    assert sec_sccs[0].energy_zero_point.magnitude == approx(4.89692971e-19)
-    assert sec_sccs[1].energy_correction_entropy.magnitude == approx(2.00144971e-19)
+    assert sec_sccs[0].energy_zero_point.value.magnitude == approx(4.89692971e-19)
+    assert sec_sccs[1].energy_correction_entropy.value.magnitude == approx(2.00144971e-19)
     assert sec_sccs[1].heat_capacity_C_v.magnitude == approx(2.27860167e-22)
     assert sec_sccs[1].pressure.magnitude == 100000.0
 
@@ -155,10 +155,10 @@ def test_pnoccsd(parser):
 
     sec_sccs = archive.section_run[0].section_single_configuration_calculation
     assert len(sec_sccs) == 4
-    assert sec_sccs[0].energy_total.magnitude == approx(-5.63810959e-15)
-    assert sec_sccs[1].energy_total.magnitude == approx(-5.63669838e-15)
-    assert sec_sccs[2].energy_current.magnitude == approx(-2.19140251e-17)
-    assert sec_sccs[3].energy_total.magnitude == approx(-5.6380984e-15)
+    assert sec_sccs[0].energy_total.value.magnitude == approx(-5.63810959e-15)
+    assert sec_sccs[1].energy_total.value.magnitude == approx(-5.63669838e-15)
+    assert sec_sccs[2].energy_current.value.magnitude == approx(-2.19140251e-17)
+    assert sec_sccs[3].energy_total.value.magnitude == approx(-5.6380984e-15)
 
     sec_scfs = sec_sccs[0].section_scf_iteration
     assert len(sec_scfs) == 13
@@ -178,7 +178,7 @@ def test_ricc2(parser):
 
     sec_sccs = archive.section_run[0].section_single_configuration_calculation
     assert len(sec_sccs) == 3
-    assert sec_sccs[1].energy_total.magnitude == approx(-8.6955048e-15)
+    assert sec_sccs[1].energy_total.value.magnitude == approx(-8.6955048e-15)
 
 
 def test_ridft(parser):
@@ -189,8 +189,8 @@ def test_ridft(parser):
     assert sec_method.x_turbomole_dft_d3_version == '3.1 Rev 0'
 
     sec_scc = archive.section_run[0].section_single_configuration_calculation[0]
-    assert sec_scc.section_energy_van_der_Waals[0].energy_van_der_Waals.magnitude == approx(-1.32811671e-18)
-    assert sec_scc.energy_total.magnitude == approx(-2.25881721e-14)
+    assert sec_scc.energy_van_der_Waals.value.magnitude == approx(-1.32811671e-18)
+    assert sec_scc.energy_total.value.magnitude == approx(-2.25881721e-14)
     assert sec_scc.x_turbomole_virial_theorem == approx(1.94918952771)
 
     sec_scf = sec_scc.section_scf_iteration
