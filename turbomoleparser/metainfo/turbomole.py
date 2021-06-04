@@ -24,7 +24,7 @@ from nomad.metainfo import (  # pylint: disable=unused-import
 )
 from nomad.metainfo.legacy import LegacyDefinition
 
-from nomad.datamodel.metainfo import public
+from nomad.datamodel.metainfo import common_dft as public
 
 m_package = Package(
     name='turbomole_nomadmetainfo_json',
@@ -526,27 +526,28 @@ class section_scf_iteration(public.section_scf_iteration):
         a_legacy=LegacyDefinition(name='x_turbomole_norm_fock_scf_iteration'))
 
 
-class BandEnergiesValues(public.BandEnergiesValues):
+class BandEnergies(public.BandEnergies):
 
     m_def = Section(validate=False, extends_base_section=True, a_legacy=LegacyDefinition(name='section_eigenvalues'))
 
     x_turbomole_eigenvalues_irreducible_representation = Quantity(
         type=np.dtype('U'),
-        shape=['n_bands'],
+        shape=['number_of_spin_channels', 'number_of_eigenvalues_kpoints', 'number_of_eigenvalues'],
         description='''
         Irreducible representation the eigenstates belong to.
         ''',
         a_legacy=LegacyDefinition(name='x_turbomole_eigenvalues_irreducible_representation'))
 
 
-class BandEnergies(public.BandEnergies):
+class GWBandEnergies(public.GWBandEnergies):
 
-    m_def = Section(validate=False, extends_base_section=True, a_legacy=LegacyDefinition(name='section_eigenvalues'))
+    m_def = Section(validate=False, extends_base_section=True)
 
-    x_turbomole_section_eigenvalues_GW = SubSection(
-        sub_section=SectionProxy('x_turbomole_section_eigenvalues_GW'),
-        repeats=True,
-        a_legacy=LegacyDefinition(name='x_turbomole_section_eigenvalues_GW'))
+    x_turbomole_ExchangeCorrelation_perturbativeGW_derivation = Quantity(
+        type=np.dtype('U'),
+        shape=['n_spin_channels', 'n_kpoints', 'n_bands'],
+        description='''
+        ''')
 
 
 class section_sampling_method(public.section_sampling_method):

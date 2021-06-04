@@ -29,8 +29,7 @@ from nomad.parsing.file_parser import TextParser, Quantity, FileParser
 from nomad.datamodel.metainfo.common_dft import Run, Method, MethodAtomKind, MethodBasisSet,\
     BasisSetAtomCentered, BasisSet, System, SingleConfigurationCalculation, XCFunctionals,\
     SystemToSystemRefs, CalculationToCalculationRefs, ScfIteration, BandEnergies,\
-    BandEnergiesValues, SamplingMethod, Energy, Forces
-from turbomoleparser.metainfo.turbomole import x_turbomole_section_eigenvalues_GW
+    SamplingMethod, Energy, Forces, GW, GWBandEnergies
 from turbomoleparser.metainfo import m_env
 
 
@@ -301,7 +300,7 @@ class OutParser(TextParser):
                 'Z_factor', 'ExchangeCorrelation_perturbativeGW_derivation']
             states = dict()
             for n, key in enumerate(keys):
-                states[key] = val[n] * ureg.eV if key.startswith('eigenvalue') else val[n]
+                states[key] = val[n]
             return states
 
         def str_to_options(val_in):
@@ -960,14 +959,9 @@ class TurbomoleParser(FairdiParser):
                         occupation, dtype=float), (len(eigenvalue_files), 1, len(occupation[0])))
                     irrep = np.reshape(np.array(
                         irrep, dtype=np.dtype('U')), (len(eigenvalue_files), 1, len(irrep[0])))
-                    for spin in range(len(values)):
-                        for kpt in range(len(values[spin])):
-                            sec_eigenvalues_values = sec_eigenvalues.m_create(BandEnergiesValues, BandEnergies.band_energies)
-                            sec_eigenvalues_values.spin = spin
-                            sec_eigenvalues_values.kpoints_index = kpt
-                            sec_eigenvalues_values.value = values[spin][kpt]
-                            sec_eigenvalues_values.occupations = occupations[spin][kpt]
-                            sec_eigenvalues_values.x_turbomole_eigenvalues_irreducible_representation = irrep[spin][kpt]
+                    sec_eigenvalues.value = values
+                    sec_eigenvalues.occupations = occupations
+                    sec_eigenvalues.x_turbomole_eigenvalues_irreducible_representation = irrep
                     sec_eigenvalues.kpoints = [np.zeros(3)]
             except Exception:
                 self.logger.warn('Cannot read eigenvalues.')
@@ -1029,11 +1023,24 @@ class TurbomoleParser(FairdiParser):
 
         # gw
         if self.module.get('gw') is not None:
-            sec_eigenvalues = sec_scc.m_create(BandEnergies)
-            for qp_states in self.module.gw.get('qp_states', []):
-                sec_gw_eigenvalues = sec_eigenvalues.m_create(x_turbomole_section_eigenvalues_GW)
-                for key, val in qp_states.items():
-                    setattr(sec_gw_eigenvalues, 'x_turbomole_%s' % key, val)
+            gw_metainfo_map = {
+                'Z_factor': 'qp_linearization_prefactor',
+                'eigenvalue_ks_GroundState': 'value_KS',
+                'eigenvalue_quasiParticle_energy': 'value_qp',
+                'eigenvalue_ExchangeCorrelation_perturbativeGW': 'value_XC',
+                'eigenvalue_ExactExchange_perturbativeGW': 'value_X',
+                'eigenvalue_correlation_perturbativeGW': 'value_C',
+                'eigenvalue_ks_ExchangeCorrelation': 'value_KS_XC',
+                'ExchangeCorrelation_perturbativeGW_derivation': 'x_turbomole_ExchangeCorrelation_perturbativeGW_derivation'
+            }
+            sec_gw = sec_scc.m_create(GW)
+            sec_eigs_gw = sec_gw.m_create(GWBandEnergies)
+            for key, name in gw_metainfo_map.items():
+                val = [q.get(key) for q in self.module.gw.get('qp_states', [])]
+                # TODO verify shape for spin polarized
+                val = np.reshape(val, (1, len(self.module.gw.get('qp_states', [])), len(val[0])))
+                val = val * ureg.eV if name.startswith('value_') else val
+                setattr(sec_eigs_gw, name, val)
 
         # vdW
         energy_vdW = self.module.get('dft_d3', {}).get('energy_van_der_Waals')
