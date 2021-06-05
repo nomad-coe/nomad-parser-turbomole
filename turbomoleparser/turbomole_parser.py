@@ -29,7 +29,7 @@ from nomad.parsing.file_parser import TextParser, Quantity, FileParser
 from nomad.datamodel.metainfo.common_dft import Run, Method, MethodAtomKind, MethodBasisSet,\
     BasisSetAtomCentered, BasisSet, System, SingleConfigurationCalculation, XCFunctionals,\
     SystemToSystemRefs, CalculationToCalculationRefs, ScfIteration, BandEnergies,\
-    SamplingMethod, Energy, Forces, GW, GWBandEnergies
+    SamplingMethod, Energy, Forces, GW, GWBandEnergies, Thermodynamics
 from turbomoleparser.metainfo import m_env
 
 
@@ -257,7 +257,7 @@ class OutParser(TextParser):
         def str_to_scf_energies(val_in):
             val = [float(v) for v in val_in.strip().replace('D', 'E').split()]
             return dict(
-                energy_total_scf_iteration=val[1] * ureg.hartree,
+                energy_total=val[1] * ureg.hartree,
                 x_turbomole_energy_1electron_scf_iteration=val[2] * ureg.hartree,
                 x_turbomole_energy_2electron_scf_iteration=val[3] * ureg.hartree)
 
@@ -875,13 +875,14 @@ class TurbomoleParser(FairdiParser):
         thermodynamics = self.module.get('thermodynamics')
         if thermodynamics is not None:
             current_t, current_p = 0., 0.
-            sec_scc_thermo = None
+            # sec_scc_thermo = None
             for thermo in thermodynamics:
                 if current_t != thermo.get('t', 0.) or current_p != thermo.get('p', 0.):
                     sec_scc_thermo = sec_run.m_create(SingleConfigurationCalculation)
                     sec_scc_refs = sec_scc_thermo.m_create(CalculationToCalculationRefs)
                     sec_scc_refs.calculation_to_calculation_ref = sec_scc
                     sec_scc_refs.calculation_to_calculation_kind = 'starting_point'
+                    sec_thermo = sec_scc_thermo.m_create(Thermodynamics)
                 current_t, current_p = thermo.get('t', 0.), thermo.get('p', 0.)
                 if sec_scc_thermo is not None:
                     for key, val in thermo.items():
@@ -890,7 +891,7 @@ class TurbomoleParser(FairdiParser):
                             sec_scc_thermo.m_add_sub_section(getattr(
                                 SingleConfigurationCalculation, key), Energy(value=val))
                         else:
-                            setattr(sec_scc_thermo, key, val)
+                            setattr(sec_thermo, key, val)
 
         # hessian
         if self.module.get('hessian') is not None:
@@ -995,15 +996,20 @@ class TurbomoleParser(FairdiParser):
             sec_iteration = sec_scc.m_create(ScfIteration)
 
             for key, val in iteration.get('energies', {}).items():
-                setattr(sec_iteration, key, val)
+                if key.startswith('energy_'):
+                    sec_iteration.m_add_sub_section(getattr(ScfIteration, key), Energy(value=val))
+                else:
+                    setattr(sec_iteration, key, val)
             # energy change
-            sec_iteration.energy_change_scf_iteration = energies[n]
+            sec_iteration.energy_change = energies[n]
             # scf quantities
-            for key in ['energy_total', 'energy_XC', 'time']:
+            for key in ['energy_total', 'energy_XC']:
                 val = iteration.get(key, None)
                 if val is None:
                     continue
-                setattr(sec_iteration, '%s_scf_iteration' % key, val)
+                sec_iteration.m_add_sub_section(getattr(ScfIteration, key), Energy(value=val))
+            if iteration.get('time'):
+                sec_iteration.time_calculation = iteration.get('time')
             # miscellaneous scf quantities
             scf_keys = [
                 'damping_scf_iteration', 'norm_diis_scf_iteration', 'delta_eigenvalues',

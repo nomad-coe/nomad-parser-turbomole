@@ -78,10 +78,10 @@ def test_ccsdf12(parser):
     assert sec_sccs[1].energy_total.value.magnitude == approx(-2.99841134e-15)
     assert sec_sccs[2].energy_total.value.magnitude == approx(-2.99844594e-15)
     assert sec_sccs[1].energy_current.value.magnitude == approx(-5.78479974e-18)
-    sec_scfs = sec_sccs[0].section_scf_iteration
+    sec_scfs = sec_sccs[0].scf_iteration
     assert len(sec_scfs) == 13
-    assert sec_scfs[8].energy_total_scf_iteration.magnitude == approx(-2.99844594e-15)
-    assert sec_scfs[2].time_scf_iteration.magnitude == 2.09
+    assert sec_scfs[8].energy_total.value.magnitude == approx(-2.99844594e-15)
+    assert sec_scfs[2].time_calculation.magnitude == 2.09
 
 
 def test_grad_statpt_dscf(parser):
@@ -100,9 +100,9 @@ def test_grad_statpt_dscf(parser):
 
     sec_sccs = archive.section_run[0].section_single_configuration_calculation
     assert sec_sccs[0].forces_total.value_raw[6][0].magnitude == approx(-4.2984543e-12)
-    sec_scfs = sec_sccs[2].section_scf_iteration
+    sec_scfs = sec_sccs[2].scf_iteration
     assert len(sec_scfs) == 3
-    assert sec_scfs[1].energy_total_scf_iteration.magnitude == approx(-8.35592725e-16)
+    assert sec_scfs[1].energy_total.value.magnitude == approx(-8.35592725e-16)
     assert sec_scfs[0].x_turbomole_delta_eigenvalues.magnitude == approx(2.92683961e-22)
     assert sec_sccs[2].energy_kinetic_electronic.value.magnitude == approx(8.27834082e-16)
 
@@ -136,8 +136,8 @@ def test_freeh(parser):
     assert len(sec_sccs) == 2
     assert sec_sccs[0].energy_zero_point.value.magnitude == approx(4.89692971e-19)
     assert sec_sccs[1].energy_correction_entropy.value.magnitude == approx(2.00144971e-19)
-    assert sec_sccs[1].heat_capacity_C_v.magnitude == approx(2.27860167e-22)
-    assert sec_sccs[1].pressure.magnitude == 100000.0
+    assert sec_sccs[1].thermodynamics[0].heat_capacity_C_v.magnitude == approx(2.27860167e-22)
+    assert sec_sccs[1].thermodynamics[0].pressure.magnitude == 100000.0
 
 
 def test_pnoccsd(parser):
@@ -160,9 +160,9 @@ def test_pnoccsd(parser):
     assert sec_sccs[2].energy_current.value.magnitude == approx(-2.19140251e-17)
     assert sec_sccs[3].energy_total.value.magnitude == approx(-5.6380984e-15)
 
-    sec_scfs = sec_sccs[0].section_scf_iteration
+    sec_scfs = sec_sccs[0].scf_iteration
     assert len(sec_scfs) == 13
-    assert sec_scfs[6].energy_total_scf_iteration.magnitude == approx(-5.63708622e-15)
+    assert sec_scfs[6].energy_total.value.magnitude == approx(-5.63708622e-15)
 
 
 def test_ricc2(parser):
@@ -193,7 +193,7 @@ def test_ridft(parser):
     assert sec_scc.energy_total.value.magnitude == approx(-2.25881721e-14)
     assert sec_scc.x_turbomole_virial_theorem == approx(1.94918952771)
 
-    sec_scf = sec_scc.section_scf_iteration
+    sec_scf = sec_scc.scf_iteration
     assert len(sec_scf) == 28
     assert sec_scf[3].x_turbomole_energy_2electron_scf_iteration.magnitude == approx(1.02566632e-13)
-    assert sec_scf[23].energy_XC_scf_iteration.magnitude == approx(-2.28814098e-15)
+    assert sec_scf[23].energy_XC.value.magnitude == approx(-2.28814098e-15)
