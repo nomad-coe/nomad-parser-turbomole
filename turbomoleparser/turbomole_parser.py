@@ -26,11 +26,20 @@ from ase.data import atomic_numbers
 from nomad.units import ureg
 from nomad.parsing import FairdiParser
 from nomad.parsing.file_parser import TextParser, Quantity, FileParser
-from nomad.datamodel.metainfo.common_dft import Run, Method, MethodAtomKind, MethodBasisSet,\
-    BasisSetAtomCentered, BasisSet, System, SingleConfigurationCalculation, XCFunctionals,\
-    SystemToSystemRefs, CalculationToCalculationRefs, ScfIteration, BandEnergies,\
-    SamplingMethod, Energy, Forces, GW, GWBandEnergies, Thermodynamics
-from turbomoleparser.metainfo import m_env
+from nomad.datamodel.metainfo.run.run import Run, Program, TimeRun
+from nomad.datamodel.metainfo.run.method import (
+    AtomParameters, Functional, Method, Electronic, MethodReference, BasisSet,
+    BasisSetAtomCentered, Smearing, XCFunctional, DFT
+)
+from nomad.datamodel.metainfo.run.system import (
+    System, Atoms, SystemReference
+)
+from nomad.datamodel.metainfo.run.calculation import (
+    Calculation, CalculationReference, Energy, EnergyEntry, Forces, ForcesEntry,
+    Thermodynamics, BandEnergies, GW, GWBandEnergies, ScfIteration
+)
+from nomad.datamodel.metainfo.workflow import Workflow, GeometryOptimization
+import turbomoleparser.metainfo.turbomole  # pylint: disable=unused-import
 
 
 MOL = 6.02214076E23
@@ -475,9 +484,9 @@ class OutParser(TextParser):
                 'smearing',
                 r'(\w+ smearing switched on[\s\S]+?)\n\s*\n',
                 sub_parser=TextParser(quantities=[
-                    Quantity('smearing_kind', r'(\w+) smearing', str_operation=lambda x: x.lower()),
+                    Quantity('kind', r'(\w+) smearing', str_operation=lambda x: x.lower()),
                     Quantity(
-                        'smearing_width',
+                        'width',
                         rf'Final electron temperature:\s*({re_float})', dtype=float)])),
             Quantity(
                 'energy_reference_wavefunction',
@@ -700,7 +709,6 @@ class TurbomoleParser(FairdiParser):
             name='parsers/turbomole', code_name='turbomole',
             code_homepage='https://www.turbomole.org/',
             mainfile_contents_re=(r'Copyright \(C\) [0-9]+ TURBOMOLE GmbH, Karlsruhe'))
-        self._metainfo_env = m_env
         self.out_parser = OutParser()
         self.matrix_parser = AuxiliaryOutParser(r' *(\d+\s+\d+\s+[\d\.\- ]+)\n', 2)
         self.vibrational_parser = AuxiliaryOutParser(
@@ -744,14 +752,14 @@ class TurbomoleParser(FairdiParser):
             'Maximum allowed trust radius': 'x_turbomole_geometry_optimization_trustregion_max',
             'Minimum allowed trust radius': 'x_turbomole_geometry_optimization_trustregion_min',
             'Initial trust radius': 'x_turbomole_geometry_optimization_trustregion_initial',
-            'Hessian update method': 'geometry_optimization_method',
-            'Threshold for energy change': 'geometry_optimization_energy_change',
-            'Threshold for max displacement element': 'geometry_optimization_geometry_change',
-            'Threshold for max gradient element': 'geometry_optimization_threshold_force',
+            'Hessian update method': 'method',
+            'Threshold for energy change': 'input_energy_difference_tolerance',
+            'Threshold for max displacement element': 'input_displacement_maximum_tolerance',
+            'Threshold for max gradient element': 'input_force_maximum_tolerance',
             'Threshold for RMS of displacement': 'x_turbomole_geometry_optimization_geometry_change_rms',
             'Threshold for RMS of gradient': 'x_turbomole_geometry_optimization_threshold_force_rms',
             't': 'temperature', 'p': 'pressure', 'entropy': 'energy_correction_entropy',
-            'energy': 'energy_total', 'cv': 'heat_capacity_C_v', 'cp': 'heat_capacity_C_p'}
+            'energy': 'energy_total', 'cv': 'heat_capacity_c_v', 'cp': 'heat_capacity_c_p'}
 
     def init_parser(self):
         self.out_parser.mainfile = self.filepath
@@ -782,15 +790,16 @@ class TurbomoleParser(FairdiParser):
             return 'G0W0'
 
     def parse_system(self):
-        sec_run = self.archive.section_run[0]
+        sec_run = self.archive.run[0]
         sec_system = sec_run.m_create(System)
+        sec_atoms = sec_system.m_create(Atoms)
 
         info = self.module.get('atomic_info', {}).get('info', {})
         if info.get('coordinates') is not None:
-            sec_system.atom_positions = info.get('coordinates', [])
+            sec_atoms.positions = info.get('coordinates', [])
         if info.get('atom') is not None:
-            sec_system.atom_labels = info.get('atom', [])
-        sec_system.configuration_periodic_dimensions = [False, False, False]
+            sec_atoms.labels = info.get('atom', [])
+        sec_atoms.periodic = [False, False, False]
         # TODO is it always non-periodic?
 
         point_charges = self.module.get('embedding_point_charges', {})
@@ -802,16 +811,16 @@ class TurbomoleParser(FairdiParser):
             if cluster is None:
                 continue
             sec_system_cluster = sec_run.m_create(System)
-            sec_system_cluster.atom_positions = cluster.get('coordinates')
-            sec_system_cluster.atom_labels = cluster.get('labels')
+            sec_atoms = sec_system_cluster.m_create(Atoms)
+            sec_atoms.positions = cluster.get('coordinates')
+            sec_atoms.labels = cluster.get('labels')
             if name == 'redefined':
                 sec_system_cluster.x_turbomole_pceem_charges = cluster.get('charges')
-                sec_system_cluster.lattice_vectors = point_charges.get('lattice_vectors')
-            sec_system_cluster.configuration_periodic_dimensions = [True, True, True]
+                sec_atoms.lattice_vectors = point_charges.get('lattice_vectors')
+            sec_atoms.periodic = [True, True, True]
             # TODO is the reference correct or the other way around?
-            sec_system_refs = sec_system.m_create(SystemToSystemRefs)
-            sec_system_refs.system_to_system_ref = sec_system_cluster
-            sec_system_refs.system_to_system_kind = description
+            sec_system.system_ref.append(
+                SystemReference(value=sec_system_cluster, kind=description))
 
         for key, val in point_charges.items():
             if key.startswith('pceem_') and val is not None:
@@ -820,56 +829,53 @@ class TurbomoleParser(FairdiParser):
         return sec_system
 
     def parse_scc(self):
-        sec_run = self.archive.section_run[0]
-        sec_scc = sec_run.m_create(SingleConfigurationCalculation)
+        sec_run = self.archive.run[0]
+        sec_scc = sec_run.m_create(Calculation)
 
         n_atoms = self.get_number_of_atoms()
 
         # energies
+        sec_energy = sec_scc.m_create(Energy)
         for key, val in self.module.get('energies', {}).items():
             key = self.metainfo_map.get(key, None)
             if key is None:
                 continue
             if key.startswith('energy_'):
-                sec_scc.m_add_sub_section(getattr(
-                    SingleConfigurationCalculation, key), Energy(value=val))
+                sec_energy.m_add_sub_section(getattr(
+                    Energy, key.replace('energy_', '').lower()), EnergyEntry(value=val))
             else:
                 setattr(sec_scc, key, val)
 
         for key in ['zero_point', 'current', 'total']:
-            key = 'energy_%s' % key
-            val = self.module.get(key)
+            val = self.module.get('energy_%s' % key)
             if val is not None:
-                sec_scc.m_add_sub_section(getattr(
-                    SingleConfigurationCalculation, key), Energy(value=val))
+                sec_energy.m_add_sub_section(getattr(Energy, key), EnergyEntry(value=val))
 
         # module-specific energies (will create additional scc, method)
         for name, energies in self.module.items():
             if not name.startswith('energies_') or energies is None:
                 continue
-            sec_scc_module = sec_run.m_create(SingleConfigurationCalculation)
+            sec_scc_module = sec_run.m_create(Calculation)
+            sec_scc_module_energy = sec_scc_module.m_create(Energy)
             for key, val in energies.items():
                 key = self.metainfo_map.get(key, None)
                 if key is None:
                     continue
                 if key.startswith('energy_'):
-                    sec_scc_module.m_add_sub_section(getattr(
-                        SingleConfigurationCalculation, key), Energy(value=val))
+                    sec_scc_module_energy.m_add_sub_section(getattr(
+                        Energy, key.replace('energy_', '').lower()), EnergyEntry(value=val))
                 else:
                     setattr(sec_scc_module, key, val)
             sec_method_module = sec_run.m_create(Method)
-            sec_method_module.electronic_structure_method = name.lstrip('energies_')
-            sec_scc_module.single_configuration_to_calculation_method_ref = sec_method_module
+            sec_method_module.electronic = Electronic(method=name.lstrip('energies_'))
+            sec_scc_module.method_ref.append(MethodReference(value=sec_method_module))
             # add reference to main sec_scc
-            sec_scc_refs = sec_scc_module.m_create(CalculationToCalculationRefs)
-            sec_scc_refs.calculation_to_calculation_ref = sec_scc
-            sec_scc_refs.calculation_to_calculation_kind = 'starting_point'
+            sec_scc_module.calculation_ref.append(CalculationReference(value=sec_scc, kind='starting_point'))
 
         # forces
         energy_gradient = self.module.get('energy_gradient')
         if energy_gradient is not None:
-            sec_scc.m_add_sub_section(
-                SingleConfigurationCalculation.forces_total, Forces(value_raw=energy_gradient))
+            sec_scc.forces = Forces(total=ForcesEntry(value_raw=energy_gradient))
 
         # thermodynamics
         thermodynamics = self.module.get('thermodynamics')
@@ -878,18 +884,17 @@ class TurbomoleParser(FairdiParser):
             # sec_scc_thermo = None
             for thermo in thermodynamics:
                 if current_t != thermo.get('t', 0.) or current_p != thermo.get('p', 0.):
-                    sec_scc_thermo = sec_run.m_create(SingleConfigurationCalculation)
-                    sec_scc_refs = sec_scc_thermo.m_create(CalculationToCalculationRefs)
-                    sec_scc_refs.calculation_to_calculation_ref = sec_scc
-                    sec_scc_refs.calculation_to_calculation_kind = 'starting_point'
+                    sec_scc_thermo = sec_run.m_create(Calculation)
+                    sec_scc_thermo.calculation_ref.append(CalculationReference(value=sec_scc, kind='starting_point'))
                     sec_thermo = sec_scc_thermo.m_create(Thermodynamics)
+                    sec_scc_thermo_energy = sec_scc_thermo.m_create(Energy)
                 current_t, current_p = thermo.get('t', 0.), thermo.get('p', 0.)
                 if sec_scc_thermo is not None:
                     for key, val in thermo.items():
                         key = self.metainfo_map.get(key, key)
                         if key.startswith('energy_'):
-                            sec_scc_thermo.m_add_sub_section(getattr(
-                                SingleConfigurationCalculation, key), Energy(value=val))
+                            sec_scc_thermo_energy.m_add_sub_section(getattr(
+                                Energy, key.replace('energy_', '').lower()), EnergyEntry(value=val))
                         else:
                             setattr(sec_thermo, key, val)
 
@@ -967,26 +972,6 @@ class TurbomoleParser(FairdiParser):
             except Exception:
                 self.logger.warn('Cannot read eigenvalues.')
 
-        # basis set
-        for basis_set in self.module.get('basis_set_info', []):
-            basis_set_mapping = dict()
-            for atom in basis_set.get('atom', []):
-                symbol = atom[0].title()
-                sec_atom_basis = sec_run.m_create(BasisSetAtomCentered)
-                sec_atom_basis.basis_set_atom_centered_short_name = atom[4]
-                sec_atom_basis.basis_set_atom_number = atomic_numbers.get(symbol, 0)
-                if basis_set.spherical:
-                    sec_atom_basis.number_of_basis_functions_in_basis_set_atom_centered = atom[3]
-                basis_set_mapping[symbol] = sec_atom_basis
-
-            # all atoms with duplicate in basis_set_info
-            if len(basis_set.get('atom', [])) == self.get_number_of_atoms():
-                sec_basis_set = sec_scc.m_create(BasisSet)
-                sec_basis_set.mapping_section_basis_set_atom_centered = [
-                    basis_set_mapping[symbol] for symbol in self.module.get(
-                        'atomic_info', {}).get('info', {}).get('atom', [])]
-                sec_basis_set.basis_set_kind = 'density' if basis_set.auxiliary else 'wavefunction'
-
         # self consistency
         self_consistency = self.module.get('self_consistency', {})
         # total energies for calculation of energy change
@@ -994,20 +979,23 @@ class TurbomoleParser(FairdiParser):
             'energy_total_scf_iteration') for iteration in self_consistency.get('iteration', [])]
         for n, iteration in enumerate(self_consistency.get('iteration', [])):
             sec_iteration = sec_scc.m_create(ScfIteration)
+            sec_iteration_energy = sec_iteration.m_create(Energy)
 
             for key, val in iteration.get('energies', {}).items():
                 if key.startswith('energy_'):
-                    sec_iteration.m_add_sub_section(getattr(ScfIteration, key), Energy(value=val))
+                    sec_iteration_energy.m_add_sub_section(
+                        getattr(Energy, key.replace('energy_', '').lower()), EnergyEntry(value=val))
                 else:
                     setattr(sec_iteration, key, val)
             # energy change
             sec_iteration.energy_change = energies[n]
             # scf quantities
-            for key in ['energy_total', 'energy_XC']:
-                val = iteration.get(key, None)
+            for key in ['total', 'XC']:
+                val = iteration.get('energy_%s' % key, None)
                 if val is None:
                     continue
-                sec_iteration.m_add_sub_section(getattr(ScfIteration, key), Energy(value=val))
+                sec_iteration_energy.m_add_sub_section(
+                    getattr(Energy, key.lower()), EnergyEntry(value=val))
             if iteration.get('time'):
                 sec_iteration.time_calculation = iteration.get('time')
             # miscellaneous scf quantities
@@ -1025,18 +1013,18 @@ class TurbomoleParser(FairdiParser):
                 setattr(sec_iteration, 'x_turbomole_%s' % key, val)
         n_scf = self_consistency.get('number_of_scf_iterations', None)
         if n_scf is not None:
-            sec_scc.number_of_scf_iterations = n_scf
+            sec_scc.n_scf_iterations = n_scf
 
         # gw
         if self.module.get('gw') is not None:
             gw_metainfo_map = {
                 'Z_factor': 'qp_linearization_prefactor',
-                'eigenvalue_ks_GroundState': 'value_KS',
+                'eigenvalue_ks_GroundState': 'value_ks',
                 'eigenvalue_quasiParticle_energy': 'value_qp',
-                'eigenvalue_ExchangeCorrelation_perturbativeGW': 'value_XC',
-                'eigenvalue_ExactExchange_perturbativeGW': 'value_X',
-                'eigenvalue_correlation_perturbativeGW': 'value_C',
-                'eigenvalue_ks_ExchangeCorrelation': 'value_KS_XC',
+                'eigenvalue_ExchangeCorrelation_perturbativeGW': 'value_xc',
+                'eigenvalue_ExactExchange_perturbativeGW': 'value_exchange',
+                'eigenvalue_correlation_perturbativeGW': 'value_correlation',
+                'eigenvalue_ks_ExchangeCorrelation': 'value_ks_xc',
                 'ExchangeCorrelation_perturbativeGW_derivation': 'x_turbomole_ExchangeCorrelation_perturbativeGW_derivation'
             }
             sec_gw = sec_scc.m_create(GW)
@@ -1051,52 +1039,59 @@ class TurbomoleParser(FairdiParser):
         # vdW
         energy_vdW = self.module.get('dft_d3', {}).get('energy_van_der_Waals')
         if energy_vdW is not None:
-            sec_vdW = sec_scc.m_create(Energy, SingleConfigurationCalculation.energy_van_der_Waals)
-            sec_vdW.kind = 'DFTD3'
-            sec_vdW.value = energy_vdW
+            sec_scc.energy.van_der_waals = EnergyEntry(value=energy_vdW, kind='DFTD3')
 
         return sec_scc
 
     def parse_method(self):
-        sec_method = self.archive.section_run[0].m_create(Method)
+        sec_method = self.archive.run[0].m_create(Method)
+        sec_dft = sec_method.m_create(DFT)
+        sec_electronic = sec_method.m_create(Electronic)
 
         method = self.get_electronic_structure_method()
         if method is not None:
-            sec_method.electronic_structure_method = method
-
-        sec_method.number_of_spin_channels = self.get_number_of_spin_channels()
-
+            sec_electronic.method = method
+        sec_electronic.n_spin_channels = self.get_number_of_spin_channels()
+        sec_smearing = sec_electronic.m_create(Smearing)
         for key, val in self.module.get('smearing', {}).items():
-            setattr(sec_method, key, val)
+            setattr(sec_smearing, key, val)
 
         atomic_info = self.module.get('atomic_info')
         if atomic_info is not None:
             info = atomic_info.get('info', {})
             atom_kind = list(set(info.get('atom', [])))
             for atom in atom_kind:
-                sec_atom_kind = sec_method.m_create(MethodAtomKind)
-                sec_atom_kind.method_atom_kind_atom_number = atomic_numbers.get(atom, 0)
-                sec_atom_kind.method_atom_kind_label = atom
+                sec_atom_kind = sec_method.m_create(AtomParameters)
+                sec_atom_kind.atom_number = atomic_numbers.get(atom, 0)
+                sec_atom_kind.label = atom
 
             # only atom kinds
             for basis_set in self.module.get('basis_set_info', []):
                 atom = basis_set.get('atom', [])
-                if len(atom) != len(atom_kind):
-                    continue
-                basis_set_mapping = {a[0].title(): n for n, a in enumerate(atom)}
-                sec_basis_set = sec_method.m_create(MethodBasisSet)
-                sec_basis_set.number_of_basis_sets_atom_centered = len(basis_set.get('atom', []))
-                sec_basis_set.method_basis_set_kind = 'density' if basis_set.auxiliary else 'wavefunction'
-                sec_basis_set.mapping_section_method_basis_set_atom_centered = [[
-                    n, basis_set_mapping[symbol]] for n, symbol in enumerate(atom_kind)]
+                sec_basis_set = sec_method.m_create(BasisSet)
+                sec_basis_set.kind = 'density' if basis_set.auxiliary else 'wavefunction'
+
+                for atom in basis_set.get('atom', []):
+                    symbol = atom[0].title()
+                    sec_atom_basis = sec_basis_set.m_create(BasisSetAtomCentered)
+                    sec_atom_basis.name = atom[4]
+                    sec_atom_basis.atom_number = atomic_numbers.get(symbol, 0)
+                    if basis_set.spherical:
+                        sec_atom_basis.n_basis_functions = atom[3]
 
         # XC Functionals
+        sec_xc_functional = sec_dft.m_create(XCFunctional)
         dft_functional = self.module.get('dft_functional')
         if dft_functional is not None:
-            sec_method.calculation_method_kind = 'absolute'
             for functional in self.xc_functional_map.get(dft_functional.get('functional'), ['HF_X']):
-                sec_xc_functional = sec_method.m_create(XCFunctionals)
-                sec_xc_functional.XC_functional_name = functional
+                if '_X_' in functional or functional.endswith('_X'):
+                    sec_xc_functional.exchange.append(Functional(name=functional))
+                elif '_C_' in functional or functional.endswith('_C'):
+                    sec_xc_functional.correlation.append(Functional(name=functional))
+                elif 'HYB' in functional:
+                    sec_xc_functional.hybrid.append(Functional(name=functional))
+                else:
+                    sec_xc_functional.contributions.append(Functional(name=functional))
 
             if dft_functional.exchange is not None:
                 sec_method.x_turbomole_functional_type_exchange = dft_functional.exchange
@@ -1107,7 +1102,7 @@ class TurbomoleParser(FairdiParser):
         # vdW method
         dftd3_version = self.module.get('dft_d3', {}).get('version', None)
         if dftd3_version is not None:
-            sec_method.van_der_Waals_method = 'DFT-D3'
+            sec_method.electronic.van_der_waals_method = 'DFT-D3'
             sec_method.x_turbomole_dft_d3_version = dftd3_version
 
         if self.module.get('gw') is not None:
@@ -1135,23 +1130,24 @@ class TurbomoleParser(FairdiParser):
 
         return sec_method
 
-    def parse_sampling_method(self):
+    def parse_workflow(self):
         options = self.module.get('options')
         if options is None:
             return
 
-        sec_sampling = self.archive.section_run[0].m_create(SamplingMethod)
+        sec_workflow = self.archive.m_create(Workflow)
+        sec_geometry_opt = sec_workflow.m_create(GeometryOptimization)
         for key, val in options.items():
             if 'radius' in key or 'displacement' in key:
                 val = val * ureg.bohr
             elif 'energy' in key:
                 val = val * ureg.hartree
-            elif 'gradient' in key:
+            elif 'gradient' in key or 'force' in key:
                 val = val * ureg.hartree / ureg.bohr
             key = self.metainfo_map.get(key, None)
             if key is None:
                 continue
-            setattr(sec_sampling, key, val)
+            setattr(sec_geometry_opt, key, val)
 
     def parse(self, filepath, archive, logger):
         self.filepath = os.path.abspath(filepath)
@@ -1163,22 +1159,23 @@ class TurbomoleParser(FairdiParser):
 
         sec_run = self.archive.m_create(Run)
 
-        sec_run.program_name = 'turbomole'
-        sec_run.program_basis_set_type = 'gaussians'
+        sec_run.program = Program(name='turbomole')
 
         for header in ['program_version', 'x_turbomole_nodename']:
             value = [module_run.get(header) for module_run in self.out_parser.get('module_run', [])]
             if len(set(value)) > 1:
                 self.logger.warn('Multiple values found for header.')
             if value:
-                setattr(sec_run, header, value[0])
+                if header == 'program_version':
+                    sec_run.program.version = value[0]
+                else:
+                    setattr(sec_run, header, value[0])
 
         time = [module_run.get('time') for module_run in self.out_parser.get('module_run', [])]
         time = [t for t in time if len(t) == 2]
         start = datetime.strptime(time[0][0], '%Y-%m-%d %H:%M:%S.%f') - datetime.utcfromtimestamp(0)
-        sec_run.time_run_date_start = start.total_seconds()
         end = datetime.strptime(time[-1][1], '%Y-%m-%d %H:%M:%S.%f') - datetime.utcfromtimestamp(0)
-        sec_run.time_run_date_end = end.total_seconds()
+        sec_run.time_run = TimeRun(date_start=start.total_seconds(), date_end=end.total_seconds())
 
         for module_run in self.out_parser.get('module_run', []):
             for name, module in module_run.items():
@@ -1188,6 +1185,6 @@ class TurbomoleParser(FairdiParser):
                     sec_method = self.parse_method()
                     sec_system = self.parse_system()
                     sec_scc = self.parse_scc()
-                    self.parse_sampling_method()
-                    sec_scc.single_configuration_to_calculation_method_ref = sec_method
-                    sec_scc.single_configuration_calculation_to_system_ref = sec_system
+                    self.parse_workflow()
+                    sec_scc.method_ref.append(MethodReference(value=sec_method))
+                    sec_scc.system_ref.append(SystemReference(value=sec_system))
