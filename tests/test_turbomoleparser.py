@@ -106,7 +106,7 @@ def test_grad_statpt_dscf(parser):
     sec_sampling = archive.workflow[0]
     assert sec_sampling.geometry_optimization.x_turbomole_geometry_optimization_trustregion_min.magnitude == approx(5.29177211e-14)
     assert sec_sampling.geometry_optimization.method == 'BFGS'
-    assert sec_sampling.geometry_optimization.input_force_maximum_tolerance.magnitude == approx(8.2387235e-11)
+    assert sec_sampling.geometry_optimization.convergence_tolerance_force_maximum.magnitude == approx(8.2387235e-11)
 
 
 def test_escf(parser):

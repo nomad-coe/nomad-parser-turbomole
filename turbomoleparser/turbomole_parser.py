@@ -753,9 +753,9 @@ class TurbomoleParser(FairdiParser):
             'Minimum allowed trust radius': 'x_turbomole_geometry_optimization_trustregion_min',
             'Initial trust radius': 'x_turbomole_geometry_optimization_trustregion_initial',
             'Hessian update method': 'method',
-            'Threshold for energy change': 'input_energy_difference_tolerance',
-            'Threshold for max displacement element': 'input_displacement_maximum_tolerance',
-            'Threshold for max gradient element': 'input_force_maximum_tolerance',
+            'Threshold for energy change': 'convergence_tolerance_energy_difference',
+            'Threshold for max displacement element': 'convergence_tolerance_displacement_maximum',
+            'Threshold for max gradient element': 'convergence_tolerance_force_maximum',
             'Threshold for RMS of displacement': 'x_turbomole_geometry_optimization_geometry_change_rms',
             'Threshold for RMS of gradient': 'x_turbomole_geometry_optimization_threshold_force_rms',
             't': 'temperature', 'p': 'pressure', 'entropy': 'energy_correction_entropy',
@@ -965,7 +965,7 @@ class TurbomoleParser(FairdiParser):
                         occupation, dtype=float), (len(eigenvalue_files), 1, len(occupation[0])))
                     irrep = np.reshape(np.array(
                         irrep, dtype=np.dtype('U')), (len(eigenvalue_files), 1, len(irrep[0])))
-                    sec_eigenvalues.value = values
+                    sec_eigenvalues.energies = values
                     sec_eigenvalues.occupations = occupations
                     sec_eigenvalues.x_turbomole_eigenvalues_irreducible_representation = irrep
                     sec_eigenvalues.kpoints = [np.zeros(3)]
