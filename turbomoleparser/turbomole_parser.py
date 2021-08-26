@@ -1069,6 +1069,7 @@ class TurbomoleParser(FairdiParser):
             for basis_set in self.module.get('basis_set_info', []):
                 atom = basis_set.get('atom', [])
                 sec_basis_set = sec_method.m_create(BasisSet)
+                sec_basis_set.type = 'gaussians'
                 sec_basis_set.kind = 'density' if basis_set.auxiliary else 'wavefunction'
 
                 for atom in basis_set.get('atom', []):

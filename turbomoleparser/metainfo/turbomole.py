@@ -26,6 +26,9 @@ from nomad.datamodel.metainfo import run
 from nomad.datamodel.metainfo import workflow
 
 
+m_package = Package()
+
+
 class x_turbomole_section_eigenvalues_GW(MSection):
     '''
     section for the eigenvalues of a GW calculation (at present only pertubative G0W0)

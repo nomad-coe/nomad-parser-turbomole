@@ -87,7 +87,7 @@ def test_grad_statpt_dscf(parser):
     parser.parse('tests/data/acrolein_grad_statpt_dscf.out', archive, None)
 
     sec_methods = archive.run[0].method
-    assert sec_methods[0].basis_set[0].atom_centered.name == 'def2-SVP'
+    assert sec_methods[0].basis_set[0].atom_centered[0].name == 'def2-SVP'
     assert len(sec_methods) == 3
     assert sec_methods[0].dft.xc_functional.hybrid[0].name == 'HYB_GGA_XC_B3LYP'
 
