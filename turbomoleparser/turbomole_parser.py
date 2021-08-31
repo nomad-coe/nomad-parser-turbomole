@@ -26,16 +26,16 @@ from ase.data import atomic_numbers
 from nomad.units import ureg
 from nomad.parsing import FairdiParser
 from nomad.parsing.file_parser import TextParser, Quantity, FileParser
-from nomad.datamodel.metainfo.run.run import Run, Program, TimeRun
-from nomad.datamodel.metainfo.run.method import (
-    AtomParameters, Functional, Method, Electronic, MethodReference, BasisSet,
+from nomad.datamodel.metainfo.simulation.run import Run, Program, TimeRun
+from nomad.datamodel.metainfo.simulation.method import (
+    AtomParameters, Functional, Method, Electronic, BasisSet,
     BasisSetAtomCentered, Smearing, XCFunctional, DFT
 )
-from nomad.datamodel.metainfo.run.system import (
-    System, Atoms, SystemReference
+from nomad.datamodel.metainfo.simulation.system import (
+    System, Atoms
 )
-from nomad.datamodel.metainfo.run.calculation import (
-    Calculation, CalculationReference, Energy, EnergyEntry, Forces, ForcesEntry,
+from nomad.datamodel.metainfo.simulation.calculation import (
+    Calculation, Energy, EnergyEntry, Forces, ForcesEntry,
     Thermodynamics, BandEnergies, GW, GWBandEnergies, ScfIteration
 )
 from nomad.datamodel.metainfo.workflow import Workflow, GeometryOptimization
@@ -806,7 +806,8 @@ class TurbomoleParser(FairdiParser):
         cluster_description = {
             'redefined': 'periodic point charges for embedding',
             'pc_cluster': 'removed point charge cluster', 'qm_cluster': 'shifted embedded QM cluster'}
-        for name, description in cluster_description.items():
+        sec_system.systems_ref = []
+        for name in cluster_description.keys():
             cluster = point_charges.get(name, None)
             if cluster is None:
                 continue
@@ -819,8 +820,7 @@ class TurbomoleParser(FairdiParser):
                 sec_atoms.lattice_vectors = point_charges.get('lattice_vectors')
             sec_atoms.periodic = [True, True, True]
             # TODO is the reference correct or the other way around?
-            sec_system.system_ref.append(
-                SystemReference(value=sec_system_cluster, kind=description))
+            sec_system.systems_ref.append(sec_system_cluster)
 
         for key, val in point_charges.items():
             if key.startswith('pceem_') and val is not None:
@@ -868,9 +868,10 @@ class TurbomoleParser(FairdiParser):
                     setattr(sec_scc_module, key, val)
             sec_method_module = sec_run.m_create(Method)
             sec_method_module.electronic = Electronic(method=name.lstrip('energies_'))
-            sec_scc_module.method_ref.append(MethodReference(value=sec_method_module))
+            sec_scc_module.method_ref = sec_method_module
             # add reference to main sec_scc
-            sec_scc_module.calculation_ref.append(CalculationReference(value=sec_scc, kind='starting_point'))
+            sec_scc_module.starting_calculation_ref = sec_scc
+            sec_scc_module.calculations_ref = [sec_scc]
 
         # forces
         energy_gradient = self.module.get('energy_gradient')
@@ -885,7 +886,8 @@ class TurbomoleParser(FairdiParser):
             for thermo in thermodynamics:
                 if current_t != thermo.get('t', 0.) or current_p != thermo.get('p', 0.):
                     sec_scc_thermo = sec_run.m_create(Calculation)
-                    sec_scc_thermo.calculation_ref.append(CalculationReference(value=sec_scc, kind='starting_point'))
+                    sec_scc_thermo.starting_calculation_ref = sec_scc
+                    sec_scc_thermo.calculations_ref = [sec_scc]
                     sec_thermo = sec_scc_thermo.m_create(Thermodynamics)
                     sec_scc_thermo_energy = sec_scc_thermo.m_create(Energy)
                 current_t, current_p = thermo.get('t', 0.), thermo.get('p', 0.)
@@ -1187,5 +1189,5 @@ class TurbomoleParser(FairdiParser):
                     sec_system = self.parse_system()
                     sec_scc = self.parse_scc()
                     self.parse_workflow()
-                    sec_scc.method_ref.append(MethodReference(value=sec_method))
-                    sec_scc.system_ref.append(SystemReference(value=sec_system))
+                    sec_scc.method_ref = sec_method
+                    sec_scc.system_ref = sec_system
