@@ -646,7 +646,7 @@ class OutParser(TextParser):
                 r'\w+\s*\((.+)\)\s*:\s*TURBO', flatten=False),
             Quantity(
                 'program_version',
-                r'MOLE V([\d\.]+\s*\([\d ]+\))', flatten=False),
+                r'MOLE (?:V|rev\.)( *[\d\.]+\s*\([\d ]+\))', flatten=False),
             Quantity(
                 'time', r'(\d\d\d\d-\d\d-\d\d\s*\d\d:\d\d:\d\d\.\d\d\d)',
                 flatten=False, repeats=True),
@@ -699,7 +699,7 @@ class OutParser(TextParser):
         # necessary to wrap it around a module so we keep the order
         self._quantities = [Quantity(
             'module_run',
-            r'(.+?TURBOMOLE (?:V|rev)[\s\S]+?all done\s*\*\*\*\*\s*[\d\.\-: ]+)',
+            r'(TURBOMOLE (?:V|rev)[\s\S]+?(?:all done\s*\*\*\*\*\s*[\d\.\-: ]+|\Z))',
             repeats=True, sub_parser=TextParser(quantities=run_quantities))]
 
 
@@ -1176,9 +1176,10 @@ class TurbomoleParser(FairdiParser):
 
         time = [module_run.get('time') for module_run in self.out_parser.get('module_run', [])]
         time = [t for t in time if len(t) == 2]
-        start = datetime.strptime(time[0][0], '%Y-%m-%d %H:%M:%S.%f') - datetime.utcfromtimestamp(0)
-        end = datetime.strptime(time[-1][1], '%Y-%m-%d %H:%M:%S.%f') - datetime.utcfromtimestamp(0)
-        sec_run.time_run = TimeRun(date_start=start.total_seconds(), date_end=end.total_seconds())
+        if len(time) > 1:
+            start = datetime.strptime(time[0][0], '%Y-%m-%d %H:%M:%S.%f') - datetime.utcfromtimestamp(0)
+            end = datetime.strptime(time[-1][1], '%Y-%m-%d %H:%M:%S.%f') - datetime.utcfromtimestamp(0)
+            sec_run.time_run = TimeRun(date_start=start.total_seconds(), date_end=end.total_seconds())
 
         for module_run in self.out_parser.get('module_run', []):
             for name, module in module_run.items():
