@@ -1176,7 +1176,7 @@ class TurbomoleParser(FairdiParser):
 
         time = [module_run.get('time') for module_run in self.out_parser.get('module_run', [])]
         time = [t for t in time if len(t) == 2]
-        if len(time) > 1:
+        if len(time) > 0:
             start = datetime.strptime(time[0][0], '%Y-%m-%d %H:%M:%S.%f') - datetime.utcfromtimestamp(0)
             end = datetime.strptime(time[-1][1], '%Y-%m-%d %H:%M:%S.%f') - datetime.utcfromtimestamp(0)
             sec_run.time_run = TimeRun(date_start=start.total_seconds(), date_end=end.total_seconds())
